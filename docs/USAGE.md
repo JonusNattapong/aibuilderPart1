@@ -228,6 +228,56 @@
 
 ---
 
+## (ใหม่) การสร้างชุดข้อมูล Multimodal (`DatasetMultimodal/`)
+
+สคริปต์ในโฟลเดอร์ `DatasetMultimodal/` ใช้สำหรับสร้างชุดข้อมูลสำหรับงาน Multimodal โดยใช้ **Local Hugging Face Models** ที่ดาวน์โหลดและรันบนเครื่องของคุณ
+
+**ข้อกำหนดเบื้องต้น:**
+
+*   **ติดตั้ง Libraries:** จำเป็นต้องติดตั้ง `transformers`, `torch`, `Pillow` (สำหรับรูปภาพ), และ `decord` (สำหรับวิดีโอ):
+    ```bash
+    pip install transformers torch Pillow decord
+    ```
+*   **Hardware:** การรันโมเดล Multimodal ขนาดใหญ่อาจต้องใช้ GPU ที่มี VRAM เพียงพอ ตรวจสอบข้อกำหนดของโมเดลที่คุณเลือกใช้
+*   **Input Data:**
+    *   สร้างโฟลเดอร์ `placeholder_images/` และใส่ไฟล์รูปภาพตัวอย่าง (เช่น `.jpg`, `.png`)
+    *   สร้างโฟลเดอร์ `placeholder_videos/` และใส่ไฟล์วิดีโอตัวอย่างสั้นๆ (เช่น `.mp4`)
+    *   แก้ไข Path ใน `config_multimodal.py` ให้ชี้ไปยังไฟล์ Input เหล่านี้
+
+**การกำหนดค่า:**
+
+*   แก้ไขไฟล์ `DatasetMultimodal/config_multimodal.py` เพื่อ:
+    *   กำหนด Hugging Face Model ID สำหรับแต่ละ Task (เช่น `VQA_MODEL_ID`, `VIDEO_CAPTIONING_MODEL_ID`) **ตรวจสอบให้แน่ใจว่าโมเดลเหล่านี้สามารถรันบนเครื่องของคุณได้**
+    *   กำหนดอุปกรณ์ที่จะใช้ (`DEVICE`: "cuda" หรือ "cpu")
+    *   กำหนดจำนวนตัวอย่าง (`NUM_SAMPLES_PER_TASK`)
+    *   กำหนด Path ไปยังไฟล์รูปภาพและวิดีโอ Input (`VQA_INPUT_IMAGES`, `VIDEO_CAPTIONING_INPUT_VIDEOS`)
+    *   กำหนดคำถามสำหรับ VQA (`VQA_QUESTIONS`)
+    *   กำหนดชื่อไฟล์ CSV ผลลัพธ์
+
+**การรันสคริปต์ (ตัวอย่าง):**
+
+```bash
+# สร้างชุดข้อมูล Visual Question Answering (VQA)
+# (ต้องมีรูปภาพใน placeholder_images/ หรือตามที่กำหนดใน config)
+python DatasetMultimodal/gen_visual_question_answering.py
+
+# สร้างชุดข้อมูล Video Captioning (Video-Text-to-Text)
+# (ต้องมีวิดีโอใน placeholder_videos/ หรือตามที่กำหนดใน config และติดตั้ง decord)
+python DatasetMultimodal/gen_video_text_to_text.py
+```
+
+**ผลลัพธ์:**
+
+*   ไฟล์ CSV ที่มีข้อมูล Input (Path รูปภาพ/วิดีโอ, คำถาม) และ Output ที่สร้างโดยโมเดล (คำตอบ, คำบรรยาย) จะถูกบันทึกใน `DataOutput/`
+
+**หมายเหตุ:**
+
+*   การดาวน์โหลดโมเดลครั้งแรกอาจใช้เวลาและพื้นที่ดิสก์
+*   ประสิทธิภาพและความเร็วในการสร้างข้อมูลขึ้นอยู่กับ Hardware ของคุณและขนาดของโมเดล
+*   การประมวลผลวิดีโออาจมีความซับซ้อนและขึ้นอยู่กับ Library `decord` และ Format ของวิดีโอ
+
+---
+
 ## (ใหม่) การสร้างชุดข้อมูลเสียง (`DatasetAudio/`)
 
 สคริปต์ในโฟลเดอร์ `DatasetAudio/` ใช้สำหรับสร้างชุดข้อมูลสำหรับงานด้านเสียงต่างๆ
@@ -369,7 +419,7 @@ python DatasetAudio/gen_audio_to_audio.py
 ## ผลลัพธ์ (Outputs)
 
 * **โมเดลที่ดาวน์โหลด:** จะถูกเก็บไว้ในโฟลเดอร์ `Model/`
-* **ชุดข้อมูลที่สร้าง (NLP, Vision, Audio):** ไฟล์ CSV จะถูกบันทึกในโฟลเดอร์ `DataOutput/` (สร้างขึ้นอัตโนมัติหากยังไม่มี)
+* **ชุดข้อมูลที่สร้าง (NLP, Vision, Audio, Multimodal):** ไฟล์ CSV จะถูกบันทึกในโฟลเดอร์ `DataOutput/` (สร้างขึ้นอัตโนมัติหากยังไม่มี)
 * **ไฟล์ Media ที่สร้าง (Vision, Audio):** ไฟล์รูปภาพ, วิดีโอ, หรือเสียง ที่สร้างโดยสคริปต์ Vision/Audio จะถูกบันทึกใน `DataOutput/generated_media/` โดยแยกตามโฟลเดอร์ย่อยของแต่ละ Task (เช่น `audio/`, `text_to_image/`)
 
 ---

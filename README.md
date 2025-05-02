@@ -52,6 +52,12 @@
     * สามารถใช้ชื่อโฟลเดอร์ย่อยเป็น Label ได้โดยอัตโนมัติ
   * กำหนดค่าได้ง่ายผ่าน `config_audio.py` (Model IDs, Input Data, Output Paths)
   * บันทึกผลลัพธ์เป็นไฟล์ CSV ใน `DataOutput/` และเก็บไฟล์เสียงที่สร้างขึ้นใน `DataOutput/generated_media/audio/`
+* **(ใหม่) Multimodal Dataset Generation (`DatasetMultimodal/`):**
+  * ใช้ Local Hugging Face Models (ต้องติดตั้ง `transformers`, `torch`, `Pillow`, `decord`) เพื่อสร้างข้อมูลตัวอย่างสำหรับงาน Multimodal:
+    * Visual Question Answering (VQA): สร้างคำตอบสำหรับคำถามเกี่ยวกับรูปภาพ
+    * Video-Text-to-Text (Video Captioning): สร้างคำบรรยายสำหรับวิดีโอ
+  * กำหนดค่าได้ง่ายผ่าน `config_multimodal.py` (Model IDs, Input Paths, Output Paths)
+  * บันทึกผลลัพธ์เป็นไฟล์ CSV ใน `DataOutput/`
 * **Dataset Utilities & Demonstrations (`Script/Dataset/`):**
   * **Content Moderation:** ตรวจสอบเนื้อหาที่ไม่เหมาะสม (`content_moderation.py`)
   * **Conversation Simulation:** จำลองและวิเคราะห์บทสนทนา (`conversation_simulation.py`)
@@ -177,6 +183,12 @@ aibuilderPart1/
 │   ├── create_audio_dataset_csv.py # (ใหม่) สร้าง CSV จากไฟล์เสียง
 │   ├── gen_*.py          # สคริปต์สร้างข้อมูล Audio แต่ละประเภท
 │   └── ...
+├── DatasetMultimodal/    # (ใหม่) สคริปต์สร้างชุดข้อมูล Multimodal (Local Models)
+│   ├── config_multimodal.py
+│   ├── multimodal_utils.py
+│   ├── gen_visual_question_answering.py
+│   ├── gen_video_text_to_text.py # (Video Captioning)
+│   └── ...
 ├── docs/                 # เอกสารประกอบ
 │   └── USAGE.md
 ├── Model/                # ที่เก็บโมเดลที่ดาวน์โหลด/ฝึก (สำหรับ NLP demos)
@@ -185,12 +197,13 @@ aibuilderPart1/
 │   ├── Generate/         # สคริปต์สร้างชุดข้อมูล NLP
 │   ├── download_model.py
 │   └── upload_model_to_hf.py
-├── placeholder_images/   # (แนะนำให้สร้าง) ที่เก็บรูปภาพ Input สำหรับ Vision tasks
+├── placeholder_images/   # (แนะนำให้สร้าง) ที่เก็บรูปภาพ Input สำหรับ Vision/Multimodal tasks
 ├── placeholder_audio/    # (แนะนำให้สร้าง) ที่เก็บไฟล์เสียง Input สำหรับ Audio tasks
+├── placeholder_videos/   # (ใหม่) (แนะนำให้สร้าง) ที่เก็บไฟล์วิดีโอ Input สำหรับ Multimodal tasks
 ├── DataOutput/           # โฟลเดอร์ผลลัพธ์ (สร้างอัตโนมัติ)
-│   ├── generated_media/  # ที่เก็บไฟล์ Media ที่สร้างโดย Vision/Audio scripts
-│   │   ├── audio/        # (ใหม่) ไฟล์เสียงที่สร้างขึ้น
-│   │   └── ...           # (ไฟล์รูปภาพ/วิดีโอจาก Vision)
+│   ├── generated_media/  # ที่เก็บไฟล์ Media ที่สร้างโดย Vision/Audio API scripts
+│   │   ├── audio/
+│   │   └── ...
 │   └── *.csv             # ไฟล์ CSV ที่สร้างโดยสคริปต์ต่างๆ
 ├── README.md             # ไฟล์นี้
 ├── requirements.txt      # รายการ Dependencies
