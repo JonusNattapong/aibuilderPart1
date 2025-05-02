@@ -10,6 +10,7 @@
     *   [อัปโหลดโมเดล](#อัปโหลดโมเดล-scriptupload_model_to_hfpy)
 3.  [การสร้างชุดข้อมูล (Dataset Generation)](#การสร้างชุดข้อมูล-dataset-generation)
     *   [ใช้ DeepSeek API](#ใช้-deepseek-api-scriptgenerategenerate_datasets_deepseekpy)
+    *   [ใช้ LangChain](#ใช้-langchain-scriptgenerategenerate_datasets_langchainpy)
 4.  [การใช้งานสคริปต์สาธิต (`Script/Dataset/`)](#การใช้งานสคริปต์สาธิต-scriptdataset)
     *   [Content Moderation](#content-moderation-scriptdatasetcontent_moderationpy)
     *   [Conversation Simulation](#conversation-simulation-scriptdatasetconversation_simulationpy)
@@ -78,11 +79,30 @@
     ```
 *   **การทำงาน:**
     *   อ่านค่า Configuration จาก `config_generate.py` (เช่น หัวข้อ, จำนวนตัวอย่าง, ชื่อไฟล์ผลลัพธ์)
-    *   วนลูปสร้างข้อมูลสำหรับแต่ละประเภทงาน (Classification, QA, NER, Summarization, etc.) โดยเรียกใช้ DeepSeek API
-    *   ใช้ Prompt Templates ที่กำหนดไว้ในสคริปต์ย่อย (`gen_qa.py`, `gen_ner.py`, etc.)
+    *   วนลูปสร้างข้อมูลสำหรับแต่ละประเภทงาน (Classification, QA, NER, Summarization, Translation, Similarity, Text Generation, Style Transfer, Fill-Mask, Text Ranking, **Code Generation**, **Reasoning (CoT)**) โดยเรียกใช้ DeepSeek API
+    *   ใช้ Prompt Templates ที่กำหนดไว้ในสคริปต์ (`generate_datasets_deepseek.py`)
     *   Parse ผลลัพธ์ JSON ที่ได้จาก API
     *   บันทึกข้อมูลที่สร้างได้ลงในไฟล์ CSV ภายในโฟลเดอร์ `DataOutput/` (ชื่อไฟล์ตามที่กำหนดใน `config_generate.py`)
     *   มีระบบ Retry หาก API Request ล้มเหลว
+
+### ใช้ LangChain (`Script/Generate/generate_datasets_langchain.py`)
+
+สคริปต์นี้ใช้ LangChain และ Hugging Face Endpoint (หรือ LLM อื่นๆ ที่รองรับ) เพื่อสร้างชุดข้อมูลสำหรับงาน NLP ต่างๆ ตามที่กำหนดค่าไว้ใน `Script/Generate/config_generate.py` และสคริปต์ย่อย (`gen_*.py`)
+
+*   **การเตรียมการ:**
+    *   ตรวจสอบว่ามีไฟล์ `.env` และกำหนด `HUGGINGFACEHUB_API_TOKEN` ถูกต้อง (หากใช้ HuggingFaceEndpoint)
+    *   ติดตั้ง `langchain`, `langchain-huggingface` (หรือ library ที่เกี่ยวข้องกับ LLM ที่เลือก)
+*   **การใช้งาน:**
+    ```bash
+    python Script/Generate/generate_datasets_langchain.py
+    ```
+*   **การทำงาน:**
+    *   อ่านค่า Configuration จาก `config_generate.py`
+    *   ตั้งค่า LLM ผ่าน LangChain (ตัวอย่างใช้ `HuggingFaceEndpoint`)
+    *   เรียกใช้ฟังก์ชัน `generate_<task>` จากสคริปต์ย่อย (`gen_qa.py`, `gen_ner.py`, `gen_code_generation.py`, `gen_reasoning_cot.py`, etc.) สำหรับแต่ละประเภทงาน
+    *   แต่ละฟังก์ชันย่อยจะใช้ Prompt Template เฉพาะ, เรียก LLM, Parse ผลลัพธ์, และบันทึกเป็น CSV ใน `DataOutput/`
+    *   รองรับงาน: Classification, QA, Table QA, Zero-Shot, NER, Translation, Summarization, Similarity, Text Generation, Style Transfer, Fill-Mask, Text Ranking, **Code Generation**, **Reasoning (CoT)**
+    *   มีระบบ Retry หาก API Request ล้มเหลว (ใน `gen_utils.py`)
 
 ---
 

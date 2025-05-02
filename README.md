@@ -8,8 +8,23 @@
 ## ✨ คุณสมบัติหลัก (Key Features)
 
 *   **Dataset Generation:**
-    *   สร้างชุดข้อมูลสำหรับงาน NLP หลากหลายประเภทโดยใช้ Large Language Models (LLM) เช่น DeepSeek ผ่าน API (`Script/Generate/generate_datasets_deepseek.py`)
-    *   รองรับงาน: Text Classification, Question Answering (QA), Table QA, Zero-Shot Classification, Named Entity Recognition (NER), Translation (TH-EN), Summarization, Sentence Similarity, Text Generation, Style Transfer (Formal/Informal), Fill-Mask, Text Ranking.
+    *   ใช้ Large Language Models (LLMs) ผ่าน DeepSeek API หรือ LangChain เพื่อสร้างข้อมูลตัวอย่างสำหรับงาน NLP หลากหลายประเภท:
+        *   Text Classification
+        *   Question Answering (Extractive & Abstractive)
+        *   Table Question Answering
+        *   Zero-Shot Text Classification
+        *   Named Entity Recognition (NER)
+        *   Translation (Thai-English)
+        *   Summarization
+        *   Sentence Similarity / Paraphrase Identification
+        *   Text Generation
+        *   Style Transfer (Formal/Informal)
+        *   Fill-Mask
+        *   Text Ranking
+        *   **Code Generation (Python)**
+        *   **Reasoning (Chain-of-Thought)**
+    *   กำหนดค่าได้ง่ายผ่าน `config_generate.py` (หัวข้อ, จำนวนตัวอย่าง)
+    *   บันทึกผลลัพธ์เป็นไฟล์ CSV ใน `DataOutput/`
 *   **Dataset Utilities & Demonstrations (`Script/Dataset/`):**
     *   **Content Moderation:** ตรวจสอบเนื้อหาที่ไม่เหมาะสม (`content_moderation.py`)
     *   **Conversation Simulation:** จำลองและวิเคราะห์บทสนทนา (`conversation_simulation.py`)

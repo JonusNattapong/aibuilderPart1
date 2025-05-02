@@ -20,7 +20,9 @@ from config_generate import (
     TEXT_GEN_TOPICS, TEXT_GEN_FILENAME,
     STYLE_TRANSFER_TOPICS, STYLE_TRANSFER_FILENAME,
     FILL_MASK_TOPICS, FILL_MASK_FILENAME,
-    TEXT_RANKING_TOPICS, TEXT_RANKING_FILENAME
+    TEXT_RANKING_TOPICS, TEXT_RANKING_FILENAME,
+    CODE_GENERATION_TOPICS, CODE_GENERATION_FILENAME, # New import
+    REASONING_COT_TOPICS, REASONING_COT_FILENAME      # New import
 )
 
 # --- DeepSeek API Configuration ---
@@ -329,6 +331,40 @@ USR_TEXT_RANKING = """
 หัวข้อ: {topic}
 ผลลัพธ์ JSON:
 """
+
+SYS_CODE_GENERATION = "คุณคือ AI ผู้ช่วยสร้างข้อมูลสำหรับงาน Code Generation ภาษาไทย. หน้าที่ของคุณคือสร้าง 'description' (คำอธิบายโจทย์สั้นๆ) และ 'code_snippet' (โค้ด Python สั้นๆ ที่แก้โจทย์นั้น) 1 คู่. สร้างเฉพาะ description และ code_snippet เท่านั้น ในรูปแบบ JSON ตามตัวอย่าง."
+USR_CODE_GENERATION = """
+ตัวอย่าง:
+หัวข้อ: ฟังก์ชัน Python พื้นฐาน
+ผลลัพธ์ JSON:
+```json
+{{
+  "description": "เขียนฟังก์ชัน Python ที่รับ list ของตัวเลข และคืนค่าผลรวมของตัวเลขทั้งหมด",
+  "code_snippet": "def sum_list(numbers):\\n    total = 0\\n    for num in numbers:\\n        total += num\\n    return total"
+}}
+```
+
+หัวข้อ: {topic}
+ผลลัพธ์ JSON:
+"""
+
+SYS_REASONING_COT = "คุณคือ AI ผู้ช่วยสร้างข้อมูลสำหรับงาน Reasoning แบบ Chain-of-Thought (CoT) ภาษาไทย. หน้าที่ของคุณคือสร้าง 'problem' (โจทย์ปัญหา), 'reasoning_steps' (ขั้นตอนการคิดเพื่อแก้ปัญหา), และ 'answer' (คำตอบสุดท้าย) 1 ชุด. สร้างเฉพาะ problem, reasoning_steps, และ answer เท่านั้น ในรูปแบบ JSON ตามตัวอย่าง."
+USR_REASONING_COT = """
+ตัวอย่าง:
+หัวข้อ: ปัญหาคณิตศาสตร์พื้นฐาน
+ผลลัพธ์ JSON:
+```json
+{{
+  "problem": "มานีมีแอปเปิ้ล 5 ผล ซื้อมาเพิ่มอีก 3 ผล แล้วแบ่งให้เพื่อนไป 2 ผล มานีจะเหลือแอปเปิ้ลกี่ผล?",
+  "reasoning_steps": "1. ตอนแรกมานีมีแอปเปิ้ล 5 ผล\\n2. ซื้อเพิ่มอีก 3 ผล ทำให้มีแอปเปิ้ลทั้งหมด 5 + 3 = 8 ผล\\n3. แบ่งให้เพื่อนไป 2 ผล จะเหลือแอปเปิ้ล 8 - 2 = 6 ผล",
+  "answer": "6 ผล"
+}}
+```
+
+หัวข้อ: {topic}
+ผลลัพธ์ JSON:
+"""
+
 
 # --- Data Generation Functions (Using DeepSeek API) ---
 
@@ -732,6 +768,71 @@ def generate_text_ranking_data(num_samples, topics, filename=TEXT_RANKING_FILENA
     else:
         print("No Text Ranking data was generated.")
 
+def generate_code_generation_data(num_samples, topics, filename=CODE_GENERATION_FILENAME):
+    """Generates Code Generation data using DeepSeek."""
+    data = []
+    print(f"\nGenerating {num_samples} code generation samples via DeepSeek...")
+    generated_count = 0
+    while generated_count < num_samples:
+        topic = topics[generated_count % len(topics)]
+        print(f"Generating sample {generated_count + 1}/{num_samples} (Topic: {topic})...")
+        user_prompt = USR_CODE_GENERATION.format(topic=topic)
+        llm_output = invoke_deepseek_with_retry(SYS_CODE_GENERATION, user_prompt)
+
+        if llm_output:
+            parsed_data = parse_json_output(llm_output)
+            if parsed_data and 'description' in parsed_data and 'code_snippet' in parsed_data:
+                 if parsed_data['description'].strip() and parsed_data['code_snippet'].strip():
+                     data.append(parsed_data)
+                     generated_count += 1
+                 else:
+                     print("Warning: Generated description or code snippet is empty. Skipping.")
+            else:
+                print("Warning: Failed to parse valid code generation data from LLM output.")
+        else:
+             print("Warning: LLM invocation failed after retries.")
+
+    if data:
+        df = pd.DataFrame(data)
+        output_path = os.path.join(OUTPUT_DIR, filename.replace(".csv", "_deepseek.csv"))
+        df.to_csv(output_path, index=False, encoding='utf-8')
+        print(f"Successfully generated and saved {len(data)} samples to {output_path}")
+    else:
+        print("No code generation data was generated.")
+
+
+def generate_reasoning_cot_data(num_samples, topics, filename=REASONING_COT_FILENAME):
+    """Generates Reasoning (Chain-of-Thought) data using DeepSeek."""
+    data = []
+    print(f"\nGenerating {num_samples} reasoning CoT samples via DeepSeek...")
+    generated_count = 0
+    while generated_count < num_samples:
+        topic = topics[generated_count % len(topics)]
+        print(f"Generating sample {generated_count + 1}/{num_samples} (Topic: {topic})...")
+        user_prompt = USR_REASONING_COT.format(topic=topic)
+        llm_output = invoke_deepseek_with_retry(SYS_REASONING_COT, user_prompt)
+
+        if llm_output:
+            parsed_data = parse_json_output(llm_output)
+            if parsed_data and 'problem' in parsed_data and 'reasoning_steps' in parsed_data and 'answer' in parsed_data:
+                 if parsed_data['problem'].strip() and parsed_data['reasoning_steps'].strip() and parsed_data['answer'].strip():
+                     data.append(parsed_data)
+                     generated_count += 1
+                 else:
+                     print("Warning: Generated problem, steps, or answer is empty. Skipping.")
+            else:
+                print("Warning: Failed to parse valid reasoning CoT data from LLM output.")
+        else:
+             print("Warning: LLM invocation failed after retries.")
+
+    if data:
+        df = pd.DataFrame(data)
+        output_path = os.path.join(OUTPUT_DIR, filename.replace(".csv", "_deepseek.csv"))
+        df.to_csv(output_path, index=False, encoding='utf-8')
+        print(f"Successfully generated and saved {len(data)} samples to {output_path}")
+    else:
+        print("No reasoning CoT data was generated.")
+
 
 # --- Main Execution ---
 if __name__ == "__main__":
@@ -757,5 +858,7 @@ if __name__ == "__main__":
     generate_style_transfer_data(NUM_SAMPLES_PER_TASK, STYLE_TRANSFER_TOPICS)
     generate_fill_mask_data(NUM_SAMPLES_PER_TASK, FILL_MASK_TOPICS)
     generate_text_ranking_data(NUM_SAMPLES_PER_TASK, TEXT_RANKING_TOPICS)
+    generate_code_generation_data(NUM_SAMPLES_PER_TASK, CODE_GENERATION_TOPICS) # New call
+    generate_reasoning_cot_data(NUM_SAMPLES_PER_TASK, REASONING_COT_TOPICS)     # New call
 
     print("\nDeepSeek dataset generation process finished.")

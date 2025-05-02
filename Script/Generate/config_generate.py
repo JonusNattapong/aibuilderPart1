@@ -66,6 +66,14 @@ FILL_MASK_FILENAME = "generated_fill_mask_data.csv"
 TEXT_RANKING_TOPICS = ["สถานที่ท่องเที่ยว", "สูตรอาหาร", "ข้อมูลทางประวัติศาสตร์", "วิธีการทำ DIY"]
 TEXT_RANKING_FILENAME = "generated_text_ranking_data.csv"
 
+# Code Generation
+CODE_GENERATION_TOPICS = ["ฟังก์ชัน Python พื้นฐาน", "การจัดการ String", "การทำงานกับ List", "โจทย์ Logic ง่ายๆ"]
+CODE_GENERATION_FILENAME = "generated_code_generation_data.csv"
+
+# Reasoning (Chain-of-Thought)
+REASONING_COT_TOPICS = ["ปัญหาคณิตศาสตร์พื้นฐาน", "ปัญหาตรรกะ", "การวางแผนง่ายๆ", "การแก้ปัญหาในชีวิตประจำวัน"]
+REASONING_COT_FILENAME = "generated_reasoning_cot_data.csv"
+
 # --- Helper to ensure OUTPUT_DIR exists ---
 def ensure_output_dir():
     """Creates the output directory if it doesn't exist."""

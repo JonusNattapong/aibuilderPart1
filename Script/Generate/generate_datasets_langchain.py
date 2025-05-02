@@ -14,7 +14,9 @@ from config_generate import (
     TEXT_GEN_TOPICS,
     STYLE_TRANSFER_TOPICS,
     FILL_MASK_TOPICS,
-    TEXT_RANKING_TOPICS
+    TEXT_RANKING_TOPICS,
+    CODE_GENERATION_TOPICS, # New import
+    REASONING_COT_TOPICS    # New import
 )
 # Import generation functions from separate files
 from gen_text_classification import generate_text_classification_data
@@ -29,6 +31,8 @@ from gen_text_generation import generate_text_generation_data
 from gen_style_transfer import generate_style_transfer_data
 from gen_fill_mask import generate_fill_mask_data
 from gen_text_ranking import generate_text_ranking_data
+from gen_code_generation import generate_code_generation_data # New import
+from gen_reasoning_cot import generate_reasoning_cot_data     # New import
 
 # --- LLM Setup ---
 def setup_llm(model_id=MODEL_ID, temperature=0.7, max_new_tokens=512):
@@ -130,6 +134,16 @@ if __name__ == "__main__":
         generate_text_ranking_data(llm,
                                    num_samples=NUM_SAMPLES_PER_TASK,
                                    topics=TEXT_RANKING_TOPICS)
+
+        # --- Generate Code Generation Data ---
+        generate_code_generation_data(llm,
+                                      num_samples=NUM_SAMPLES_PER_TASK,
+                                      topics=CODE_GENERATION_TOPICS)
+
+        # --- Generate Reasoning (CoT) Data ---
+        generate_reasoning_cot_data(llm,
+                                    num_samples=NUM_SAMPLES_PER_TASK,
+                                    topics=REASONING_COT_TOPICS)
 
 
         print("\nDataset generation process finished.")

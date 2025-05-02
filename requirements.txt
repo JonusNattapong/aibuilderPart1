@@ -1,0 +1,9 @@
+transformers
+torch
+pandas
+requests
+langchain
+huggingface_hub
+python-dotenv
+scikit-learn
+numpy
