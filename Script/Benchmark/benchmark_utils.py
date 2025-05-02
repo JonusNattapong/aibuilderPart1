@@ -11,6 +11,7 @@ import json
 import logging
 import numpy as np
 import torch
+import os # Added import
 from datetime import datetime
 from transformers import pipeline
 from sklearn.metrics import confusion_matrix
@@ -144,16 +145,23 @@ def save_benchmark_results(output_dir, training_metrics, eval_metrics, benchmark
         model_config (dict): Model configuration parameters
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
     benchmark_path = os.path.join(output_dir, f"benchmark_results_{timestamp}.json")
     
     all_metrics = {
-        "training_metrics": training_metrics,
-        "eval_metrics": eval_metrics,
-        "benchmark_results": benchmark_results,
-        "model_config": model_config
+        "timestamp": timestamp,
+        "model_config": model_config,
+        "training_performance": training_metrics, # Renamed for clarity
+        "evaluation_metrics": eval_metrics,
+        "inference_benchmark": benchmark_results # Renamed for clarity
     }
     
-    with open(benchmark_path, 'w', encoding='utf-8') as f:
-        json.dump(all_metrics, f, ensure_ascii=False, indent=2)
-    
-    logging.info(f"Benchmark results saved in: {benchmark_path}")
+    try:
+        with open(benchmark_path, 'w', encoding='utf-8') as f:
+            json.dump(all_metrics, f, ensure_ascii=False, indent=4) # Use indent for readability
+        logging.info(f"Benchmark results saved successfully to: {benchmark_path}")
+    except IOError as e:
+        logging.error(f"Error saving benchmark results to {benchmark_path}: {e}")
+    except TypeError as e:
+        logging.error(f"Error serializing benchmark results to JSON: {e}. Check data types.")

@@ -7,6 +7,13 @@ MAX_RETRIES = 3
 RETRY_DELAY = 5 # seconds
 NUM_SAMPLES_PER_TASK = 15 # Default number of samples to generate for each task
 
+# --- DeepSeek API Configuration ---
+# It's strongly recommended to set the API key via environment variable:
+# export DEEPSEEK_API_KEY='your_api_key'
+# Or in Python before running the script: os.environ["DEEPSEEK_API_KEY"] = "your_api_key"
+DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
+DEEPSEEK_MODEL = "deepseek-chat" # Or "deepseek-coder" or other available models
+
 # --- Task-Specific Configuration ---
 
 # Text Classification
