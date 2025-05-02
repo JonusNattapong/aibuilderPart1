@@ -161,7 +161,8 @@ if __name__ == '__main__':
         output_filename = "legal_data.parquet"
         # Define output directory relative to the script's location
         script_dir = os.path.dirname(__file__)
-        output_dir = os.path.abspath(os.path.join(script_dir, '..', 'DataOutput')) # Go up one level, then into DataOutput
+        # Go up one level from Parquet, then into DataOutput
+        output_dir = os.path.abspath(os.path.join(script_dir, '..', '..', 'DataOutput'))
         # Create DataOutput directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, output_filename)

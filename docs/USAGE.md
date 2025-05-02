@@ -194,7 +194,39 @@
 
 #### ชุดข้อมูลทั่วไป (`Dataset/`)
 
-ดูไฟล์ในโฟลเดอร์ `Dataset/CSV/` และ `Dataset/Parquet/` สำหรับชุดข้อมูลปกติที่ใช้สำหรับงาน NLP ต่างๆ
+ดูไฟล์ในโฟลเดอร์ `Dataset/CSV/` สำหรับชุดข้อมูลปกติที่ใช้สำหรับงาน NLP ต่างๆ เช่น NER, Text Classification, Content Moderation
+
+#### ชุดข้อมูลเฉพาะทาง (Parquet) (`Dataset/Parquet/`)
+
+โฟลเดอร์ `Dataset/Parquet/` มีสคริปต์ Python สำหรับสร้างชุดข้อมูลเฉพาะทาง (Domain-Specific) ซึ่งครอบคลุมงาน NLP หลายประเภท (Summarization, QA, Classification, etc.) ภายในโดเมนนั้นๆ สคริปต์เหล่านี้สามารถรันได้โดยตรงเพื่อสร้างไฟล์ `.parquet` ใน `DataOutput/` (ต้องติดตั้ง `pandas` และ `pyarrow`)
+
+*   `finance_dataset.py`: ข้อมูลเกี่ยวกับ **การเงิน**
+*   `legal_dataset.py`: ข้อมูลเกี่ยวกับ **กฎหมาย**
+*   `medical_dataset.py`: ข้อมูลเกี่ยวกับ **การแพทย์**
+*   `retail_dataset.py`: ข้อมูลเกี่ยวกับ **การค้าปลีก**
+*   **(ใหม่)** `code_dataset.py`: ข้อมูลเกี่ยวกับ **การเขียนโค้ด/โปรแกรมมิ่ง**
+*   **(ใหม่)** `art_dataset.py`: ข้อมูลเกี่ยวกับ **ศิลปะ**
+*   **(ใหม่)** `chemistry_dataset.py`: ข้อมูลเกี่ยวกับ **เคมี**
+*   **(ใหม่)** `biology_dataset.py`: ข้อมูลเกี่ยวกับ **ชีววิทยา**
+*   **(ใหม่)** `music_dataset.py`: ข้อมูลเกี่ยวกับ **ดนตรี**
+*   **(ใหม่)** `climate_dataset.py`: ข้อมูลเกี่ยวกับ **สภาพภูมิอากาศ/สิ่งแวดล้อม**
+
+**ตัวอย่างการสร้างไฟล์ Parquet:**
+
+```bash
+# สร้างชุดข้อมูลการเงิน (ต้องติดตั้ง pandas, pyarrow)
+python Dataset/Parquet/finance_dataset.py
+
+# สร้างชุดข้อมูลโค้ด
+python Dataset/Parquet/code_dataset.py
+
+# สร้างชุดข้อมูลศิลปะ
+python Dataset/Parquet/art_dataset.py
+
+# ... และอื่นๆ
+```
+
+ไฟล์ `.parquet` ที่ได้จะมีคอลัมน์ `domain`, `task`, `input_text`, `target_text` ซึ่งเหมาะสำหรับนำไปฝึกโมเดล Text-to-Text
 
 #### ชุดข้อมูลตามหัวข้อ (`DatasetCook/`)
 

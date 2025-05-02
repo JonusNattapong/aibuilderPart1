@@ -82,7 +82,19 @@
 * **Pre-defined Datasets:**
   * ตัวอย่างชุดข้อมูลในรูปแบบต่างๆ (`Dataset/`, `DatasetCook/`, `DatasetNLP/`, `DatasetReasoning/`)
   * ชุดข้อมูลเนื้อหาที่ไม่เหมาะสม (Uncensored) แบบแยกหมวดหมู่ (`DatasetCook/DatasetUncensore/`) สำหรับการวิจัยระบบกรองเนื้อหา
-  * *(Vision datasets are generated into `DataOutput/`)*
+  * **(ใหม่)** ชุดข้อมูลเฉพาะทาง (Domain-Specific) ในรูปแบบ Parquet (`Dataset/Parquet/`) ครอบคลุมหลาย NLP tasks สำหรับโดเมน:
+    * `finance_dataset.py` -> `finance_data.parquet`
+    * `legal_dataset.py` -> `legal_data.parquet`
+    * `medical_dataset.py` -> `medical_data.parquet`
+    * `retail_dataset.py` -> `retail_data.parquet`
+    * `code_dataset.py` -> `code_data.parquet`
+    * `art_dataset.py` -> `art_data.parquet`
+    * `chemistry_dataset.py` -> `chemistry_data.parquet`
+    * `biology_dataset.py` -> `biology_data.parquet`
+    * `music_dataset.py` -> `music_data.parquet`
+    * `climate_dataset.py` -> `climate_data.parquet`
+    * *(สามารถรันไฟล์ `.py` เพื่อสร้างไฟล์ `.parquet` ที่เกี่ยวข้องใน `DataOutput/`)*
+  * *(Vision/Audio/Multimodal/Tabular datasets are generated into `DataOutput/`)*
 
 ## 🚀 การติดตั้ง (Installation)
 
