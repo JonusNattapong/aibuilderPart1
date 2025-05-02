@@ -7,3 +7,10 @@ huggingface_hub
 python-dotenv
 scikit-learn
 numpy
+Pillow # For image processing (Vision, Multimodal)
+decord # For video processing (Multimodal)
+
+# Optional Audio Libraries (uncomment if needed for specific audio tasks)
+# pydub
+# librosa
+# soundfile
