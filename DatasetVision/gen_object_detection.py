@@ -1,47 +1,63 @@
 import os
 import pandas as pd
-import random
 import json
-
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'DataOutput')
-DATASET_VISION_DIR = os.path.dirname(__file__)
-FILENAME = "generated_object_detection.csv"
-NUM_SAMPLES = 10 # Placeholder number of samples
-CLASSES = ['car', 'person', 'traffic_light'] # Placeholder classes
+from config_vision import (
+    OUTPUT_DIR, NUM_SAMPLES_PER_TASK,
+    OBJECT_DETECTION_MODEL_ID as MODEL_ID,
+    OBJECT_DETECTION_FILENAME as FILENAME,
+    OBJECT_DETECTION_INPUT_IMAGES as INPUT_IMAGES
+)
+from vision_utils import invoke_inference_api, load_image_bytes
 
 def generate_object_detection_data(num_samples, output_dir):
-    """Generates placeholder Object Detection data."""
-    print(f"\nGenerating {num_samples} placeholder object detection samples...")
-    # Placeholder data structure: image path and bounding boxes (as JSON string)
+    """Generates Object Detection data using HF Inference API."""
+    print(f"\nGenerating {num_samples} object detection samples via API ({MODEL_ID})...")
     data = []
-    for i in range(num_samples):
-        num_objects = random.randint(1, 5)
-        bboxes = []
-        for _ in range(num_objects):
-            x_min = random.randint(10, 50)
-            y_min = random.randint(10, 50)
-            width = random.randint(20, 100)
-            height = random.randint(20, 100)
-            bboxes.append({
-                'label': random.choice(CLASSES),
-                'bbox': [x_min, y_min, x_min + width, y_min + height] # [xmin, ymin, xmax, ymax]
-            })
-        data.append({
-            'image_path': f'images/detection/img_{i}.jpg',
-            'annotations': json.dumps(bboxes)
-        })
+    if not INPUT_IMAGES:
+        print("Warning: No input images configured in config_vision.py. Cannot generate data.")
+        return
 
+    num_to_generate = min(num_samples, len(INPUT_IMAGES))
+
+    for i in range(num_to_generate):
+        input_image_path = INPUT_IMAGES[i]
+        print(f"Processing sample {i + 1}/{num_to_generate} (Input: {input_image_path})...")
+
+        image_bytes = load_image_bytes(input_image_path)
+        if not image_bytes:
+            print(f"Skipping sample {i+1} due to image loading error.")
+            continue # Skip if image can't be loaded
+
+        # Call the API
+        api_result = invoke_inference_api(MODEL_ID, data=image_bytes, task="object-detection")
+
+        if api_result:
+            # API typically returns a list of {'box': {'xmin':.., 'ymin':.., 'xmax':.., 'ymax':..}, 'label': '...', 'score': ...}
+            try:
+                # Ensure result is serializable
+                detections_json = json.dumps(api_result)
+                data.append({
+                    'input_image_path': input_image_path,
+                    'detected_objects': detections_json
+                })
+            except Exception as e:
+                 print(f"Warning: Could not process or serialize API result for {input_image_path}: {e}")
+                 print(f"API Result: {api_result}")
+        else:
+            print(f"Warning: API call failed for {input_image_path}. Skipping sample.")
+
+    # Save to CSV
     if data:
         df = pd.DataFrame(data)
         output_path = os.path.join(output_dir, FILENAME)
         df.to_csv(output_path, index=False, encoding='utf-8')
-        print(f"Successfully generated and saved {len(data)} placeholder samples to {output_path}")
+        print(f"Successfully generated and saved {len(data)} samples to {output_path}")
     else:
-        print("No placeholder object detection data was generated.")
+        print("No object detection data was generated.")
 
 if __name__ == "__main__":
-    print("Starting placeholder Object Detection data generation...")
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(DATASET_VISION_DIR, exist_ok=True)
-    generate_object_detection_data(NUM_SAMPLES, OUTPUT_DIR)
-    print("\nPlaceholder data generation process finished.")
+    print("Starting Object Detection data generation using API...")
+    # Ensure output directory exists (handled in config_vision.py)
+    # os.makedirs(OUTPUT_DIR, exist_ok=True)
+    generate_object_detection_data(NUM_SAMPLES_PER_TASK, OUTPUT_DIR)
+    print("\nAPI-based data generation process finished.")

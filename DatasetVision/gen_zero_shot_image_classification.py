@@ -1,39 +1,74 @@
 import os
 import pandas as pd
-import random
 import json
-
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'DataOutput')
-DATASET_VISION_DIR = os.path.dirname(__file__)
-FILENAME = "generated_zero_shot_image_classification.csv"
-NUM_SAMPLES = 10 # Placeholder number of samples
-ALL_CLASSES = ['cat', 'dog', 'bird', 'car', 'tree', 'house', 'person'] # Placeholder classes
+from config_vision import (
+    OUTPUT_DIR, NUM_SAMPLES_PER_TASK,
+    ZERO_SHOT_IMAGE_CLASSIFICATION_MODEL_ID as MODEL_ID,
+    ZERO_SHOT_IMAGE_CLASSIFICATION_FILENAME as FILENAME,
+    ZERO_SHOT_IMAGE_CLASSIFICATION_INPUT_IMAGES as INPUT_IMAGES,
+    ZERO_SHOT_IMAGE_CLASSIFICATION_CANDIDATES as CANDIDATE_LABELS_LIST
+)
+from vision_utils import invoke_inference_api, load_image_bytes
 
 def generate_zero_shot_image_classification_data(num_samples, output_dir):
-    """Generates placeholder Zero-Shot Image Classification data."""
-    print(f"\nGenerating {num_samples} placeholder zero-shot image classification samples...")
-    # Placeholder data structure: image path, candidate labels (JSON), expected label
+    """Generates Zero-Shot Image Classification data using HF Inference API."""
+    print(f"\nGenerating {num_samples} zero-shot image classification samples via API ({MODEL_ID})...")
     data = []
-    for i in range(num_samples):
-        candidate_labels = random.sample(ALL_CLASSES, k=random.randint(2, 5))
-        expected_label = random.choice(candidate_labels) # Simplified assumption
-        data.append({
-            'image_path': f'images/zeroshot/img_{i}.jpg',
-            'candidate_labels': json.dumps(candidate_labels),
-            'expected_label': expected_label
-        })
+    if not INPUT_IMAGES or not CANDIDATE_LABELS_LIST:
+        print("Warning: No input images or candidate labels configured in config_vision.py. Cannot generate data.")
+        return
 
+    num_to_generate = min(num_samples, len(INPUT_IMAGES), len(CANDIDATE_LABELS_LIST))
+
+    for i in range(num_to_generate):
+        input_image_path = INPUT_IMAGES[i]
+        candidate_labels = CANDIDATE_LABELS_LIST[i]
+        print(f"Processing sample {i + 1}/{num_to_generate} (Input: {input_image_path}, Labels: {candidate_labels})...")
+
+        image_bytes = load_image_bytes(input_image_path)
+        if not image_bytes:
+            print(f"Skipping sample {i+1} due to image loading error.")
+            continue # Skip if image can't be loaded
+
+        # Prepare payload for API - specific client method handles parameters
+        payload = {'parameters': {'candidate_labels': candidate_labels}}
+
+        # Call the API
+        api_result = invoke_inference_api(
+            MODEL_ID,
+            data=image_bytes,
+            json_data=payload, # Pass labels via json_data for the specific client method
+            task="zero-shot-image-classification"
+        )
+
+        if api_result:
+            # API typically returns a list of {'label': '...', 'score': ...}
+            try:
+                # Ensure result is serializable
+                predictions_json = json.dumps(api_result)
+                data.append({
+                    'input_image_path': input_image_path,
+                    'candidate_labels': json.dumps(candidate_labels), # Store the candidates used
+                    'predictions': predictions_json
+                })
+            except Exception as e:
+                 print(f"Warning: Could not process or serialize API result for {input_image_path}: {e}")
+                 print(f"API Result: {api_result}")
+        else:
+            print(f"Warning: API call failed for {input_image_path}. Skipping sample.")
+
+    # Save to CSV
     if data:
         df = pd.DataFrame(data)
         output_path = os.path.join(output_dir, FILENAME)
         df.to_csv(output_path, index=False, encoding='utf-8')
-        print(f"Successfully generated and saved {len(data)} placeholder samples to {output_path}")
+        print(f"Successfully generated and saved {len(data)} samples to {output_path}")
     else:
-        print("No placeholder zero-shot image classification data was generated.")
+        print("No zero-shot image classification data was generated.")
 
 if __name__ == "__main__":
-    print("Starting placeholder Zero-Shot Image Classification data generation...")
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(DATASET_VISION_DIR, exist_ok=True)
-    generate_zero_shot_image_classification_data(NUM_SAMPLES, OUTPUT_DIR)
-    print("\nPlaceholder data generation process finished.")
+    print("Starting Zero-Shot Image Classification data generation using API...")
+    # Ensure output directory exists (handled in config_vision.py)
+    # os.makedirs(OUTPUT_DIR, exist_ok=True) # Already handled in config
+    generate_zero_shot_image_classification_data(NUM_SAMPLES_PER_TASK, OUTPUT_DIR)
+    print("\nAPI-based data generation process finished.")
