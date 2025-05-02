@@ -7,91 +7,60 @@ from transformers import (
     Seq2SeqTrainer,
     DataCollatorForSeq2Seq,
 )
-from datasets import Dataset
+from datasets import Dataset, load_dataset, concatenate_datasets # Updated imports
 import os
-
-# --- 1. Load Data ---
-# Assuming datasets are in a 'Dataset' subdirectory relative to this script
-dataset_dir = os.path.join(os.path.dirname(__file__), 'Dataset')
 import sys
-sys.path.append(dataset_dir)
 
-try:
-    from medical_dataset import medical_domain_data
-    from finance_dataset import finance_domain_data
-    from retail_dataset import retail_domain_data
-    from legal_dataset import legal_domain_data
-    print("Successfully imported datasets.")
-except ImportError as e:
-    print(f"Error importing datasets: {e}")
-    print("Please ensure medical_dataset.py, finance_dataset.py, retail_dataset.py, and legal_dataset.py exist in the 'Dataset' directory.")
-    sys.exit(1)
+# --- 1. Load Data from Parquet Files ---
+# Define the DataOutput directory relative to this script's location
+script_dir = os.path.dirname(__file__)
+data_output_dir = os.path.join(script_dir, 'DataOutput') # Changed base directory for datasets
 
-# --- 2. Combine and Preprocess Data ---
-all_data = []
-domain_map = {
-    "medical": medical_domain_data,
-    "finance": finance_domain_data,
-    "retail": retail_domain_data,
-    "legal": legal_domain_data,
+parquet_files = {
+    "medical": os.path.join(data_output_dir, "medical_data.parquet"),
+    "finance": os.path.join(data_output_dir, "finance_data.parquet"),
+    "retail": os.path.join(data_output_dir, "retail_data.parquet"),
+    "legal": os.path.join(data_output_dir, "legal_data.parquet"),
 }
 
-def preprocess_data(domain_name, task_name, data_list):
-    processed = []
-    for item in data_list:
-        input_text = ""
-        target_text = ""
-        prefix = f"{domain_name} {task_name}: "
+loaded_datasets = []
+print("Loading datasets from Parquet files in DataOutput...")
+for domain, file_path in parquet_files.items():
+    if os.path.exists(file_path):
+        try:
+            ds = load_dataset('parquet', data_files=file_path)['train'] # load_dataset returns a DatasetDict
+            print(f"Loaded {len(ds)} records from {file_path}")
+            loaded_datasets.append(ds)
+        except Exception as e:
+            print(f"Error loading {file_path}: {e}")
+            print("Please ensure the Parquet file exists and is valid in the 'DataOutput' directory.")
+            print(f"You might need to run the corresponding dataset script (e.g., python Dataset/{domain}_dataset.py) first to generate it.")
+            sys.exit(1)
+    else:
+        print(f"Error: Parquet file not found at {file_path}")
+        print(f"Please generate it by running: python {os.path.join('Dataset', domain + '_dataset.py')}")
+        sys.exit(1)
 
-        if task_name == "summarization":
-            input_text = prefix + item.get("document", "")
-            target_text = item.get("summary", "")
-        elif task_name == "open_qa":
-            input_text = prefix + f"question: {item.get('question', '')} context: {item.get('context', '')}"
-            target_text = item.get("answer", "")
-        elif task_name == "close_qa":
-            input_text = prefix + f"question: {item.get('question', '')} context: {item.get('context', '')}"
-            target_text = item.get("answer_text", "")
-        elif task_name == "classification":
-            input_text = prefix + item.get("text", "")
-            target_text = item.get("label", "")
-        elif task_name == "creative_writing":
-            input_text = prefix + item.get("prompt", "")
-            target_text = item.get("generated_text", "")
-        elif task_name == "brainstorming":
-            input_text = prefix + item.get("topic", "")
-            target_text = "\n".join(item.get("ideas", []))
-        elif task_name == "multiple_choice_qa":
-            choices_str = " | ".join(item.get("choices", []))
-            input_text = prefix + f"question: {item.get('question', '')} choices: {choices_str} context: {item.get('context', '')}"
-            answer_idx = item.get("answer_index")
-            if answer_idx is not None and item.get("choices"):
-                target_text = item["choices"][answer_idx]
-
-        if input_text and target_text:
-            processed.append({"input_text": input_text, "target_text": target_text})
-    return processed
-
-print("Preprocessing data...")
-for domain, data in domain_map.items():
-    for task, task_data in data.items():
-        all_data.extend(preprocess_data(domain, task, task_data))
-
-print(f"Total processed data points: {len(all_data)}")
-if not all_data:
-    print("No data was processed. Check dataset files and preprocessing logic.")
+if not loaded_datasets:
+    print("No datasets were loaded. Exiting.")
     sys.exit(1)
 
-# Convert to Hugging Face Dataset
-hf_dataset = Dataset.from_list(all_data)
-# Optional: Split dataset if needed (e.g., train/validation)
-# hf_dataset = hf_dataset.train_test_split(test_size=0.1)
-# train_dataset = hf_dataset["train"]
-# eval_dataset = hf_dataset["test"]
-train_dataset = hf_dataset # Using all data for training for simplicity
+# Concatenate all datasets into one
+print("Concatenating datasets...")
+combined_dataset = concatenate_datasets(loaded_datasets)
+print(f"Total combined records: {len(combined_dataset)}")
+print(f"Dataset features: {combined_dataset.features}")
+
+# Optional: Shuffle the combined dataset
+combined_dataset = combined_dataset.shuffle(seed=42)
+
+# --- 2. Preprocessing (Now handled during Parquet generation) ---
+# The old preprocessing loop and function are removed.
+# We assume the Parquet files have 'input_text' and 'target_text' columns.
 
 # --- 3. Load Model and Tokenizer ---
 model_name = "google/mt5-small" # Example model
+# ... (rest of the model/tokenizer loading code remains the same) ...
 print(f"Loading model and tokenizer: {model_name}...")
 try:
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -101,11 +70,16 @@ except Exception as e:
     print(f"Error loading model/tokenizer: {e}")
     sys.exit(1)
 
+
 # --- 4. Tokenize Dataset ---
 max_input_length = 512
 max_target_length = 128
 
 def tokenize_function(examples):
+    # Ensure columns exist
+    if "input_text" not in examples or "target_text" not in examples:
+        raise ValueError("Parquet files must contain 'input_text' and 'target_text' columns.")
+
     model_inputs = tokenizer(examples["input_text"], max_length=max_input_length, truncation=True, padding="max_length")
     # Setup the tokenizer for targets
     with tokenizer.as_target_tokenizer():
@@ -114,12 +88,21 @@ def tokenize_function(examples):
     return model_inputs
 
 print("Tokenizing dataset...")
-tokenized_datasets = train_dataset.map(tokenize_function, batched=True, remove_columns=["input_text", "target_text"])
+# Define columns to remove based on the loaded dataset features
+columns_to_remove = list(combined_dataset.features.keys())
+tokenized_datasets = combined_dataset.map(
+    tokenize_function,
+    batched=True,
+    remove_columns=columns_to_remove # Remove original columns after tokenization
+)
 print("Tokenization complete.")
+print(f"Tokenized dataset features: {tokenized_datasets.features}")
+
 
 # --- 5. Set Training Arguments ---
-output_dir = "./results_multitask_finetune"
+output_dir = "./results_multitask_finetune_parquet" # Changed output dir name slightly
 training_args = Seq2SeqTrainingArguments(
+    # ... (training arguments remain the same) ...
     output_dir=output_dir,
     evaluation_strategy="no", # No evaluation dataset defined for simplicity
     learning_rate=2e-5,
@@ -130,9 +113,8 @@ training_args = Seq2SeqTrainingArguments(
     num_train_epochs=1, # Start with 1 epoch, increase as needed
     predict_with_generate=True,
     fp16=torch.cuda.is_available(), # Use mixed precision if CUDA is available
-    logging_dir='./logs',
+    logging_dir='./logs_parquet',
     logging_steps=10,
-    # Add push_to_hub=True if you want to upload to Hugging Face Hub
 )
 
 # --- 6. Initialize Trainer ---
@@ -141,13 +123,14 @@ data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 trainer = Seq2SeqTrainer(
     model=model,
     args=training_args,
-    train_dataset=tokenized_datasets,
+    train_dataset=tokenized_datasets, # Use the tokenized dataset
     # eval_dataset=tokenized_datasets["test"], # Uncomment if you have eval split
     tokenizer=tokenizer,
     data_collator=data_collator,
 )
 
 # --- 7. Start Training ---
+# ... (training code remains the same) ...
 print("Starting training...")
 try:
     trainer.train()
@@ -158,12 +141,15 @@ except Exception as e:
 
 
 # --- 8. Save Model ---
+# ... (saving code remains the same) ...
 print(f"Saving model to {output_dir}...")
 trainer.save_model(output_dir)
 tokenizer.save_pretrained(output_dir)
 print("Model and tokenizer saved.")
 
+
 # --- Optional: Example Inference ---
+# ... (inference code remains the same) ...
 print("\n--- Example Inference ---")
 # Load the fine-tuned model
 # model = AutoModelForSeq2SeqLM.from_pretrained(output_dir)

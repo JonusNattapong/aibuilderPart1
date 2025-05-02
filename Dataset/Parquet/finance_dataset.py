@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Sample dataset for the Finance domain covering various NLP tasks.
+Can also be run to generate finance_data.parquet in the DataOutput directory.
+Requires pandas and pyarrow: pip install pandas pyarrow
 """
+import os
+import pandas as pd # Added import
 
 # --- 1. Summarization ---
 finance_summarization_data = [
@@ -92,6 +96,49 @@ finance_domain_data = {
     "multiple_choice_qa": finance_mcq_data,
 }
 
+# Function to preprocess data into a standard format for Parquet (copied for simplicity)
+def preprocess_data_for_parquet(domain_name, task_name, data_list):
+    processed = []
+    for item in data_list:
+        input_text = ""
+        target_text = ""
+        prefix = f"{domain_name} {task_name}: "
+
+        if task_name == "summarization":
+            input_text = prefix + item.get("document", "")
+            target_text = item.get("summary", "")
+        elif task_name == "open_qa":
+            input_text = prefix + f"question: {item.get('question', '')} context: {item.get('context', '')}"
+            target_text = item.get("answer", "")
+        elif task_name == "close_qa":
+            input_text = prefix + f"question: {item.get('question', '')} context: {item.get('context', '')}"
+            target_text = item.get("answer_text", "")
+        elif task_name == "classification":
+            input_text = prefix + item.get("text", "")
+            target_text = item.get("label", "")
+        elif task_name == "creative_writing":
+            input_text = prefix + item.get("prompt", "")
+            target_text = item.get("generated_text", "")
+        elif task_name == "brainstorming":
+            input_text = prefix + item.get("topic", "")
+            target_text = "\n".join(item.get("ideas", []))
+        elif task_name == "multiple_choice_qa":
+            choices_str = " | ".join(item.get("choices", []))
+            input_text = prefix + f"question: {item.get('question', '')} choices: {choices_str} context: {item.get('context', '')}"
+            answer_idx = item.get("answer_index")
+            if answer_idx is not None and item.get("choices"):
+                target_text = item["choices"][answer_idx]
+
+        if input_text and target_text:
+            processed.append({
+                "domain": domain_name,
+                "task": task_name,
+                "input_text": input_text,
+                "target_text": target_text
+            })
+    return processed
+
+
 if __name__ == '__main__':
     print("--- Finance Domain Dataset Samples ---")
     print(f"\nSummarization Example:\n{finance_domain_data['summarization'][0]}")
@@ -101,3 +148,30 @@ if __name__ == '__main__':
     print(f"\nCreative Writing Example:\n{finance_domain_data['creative_writing'][0]}")
     print(f"\nBrainstorming Example:\n{finance_domain_data['brainstorming'][0]}")
     print(f"\nMultiple Choice QA Example:\n{finance_domain_data['multiple_choice_qa'][0]}")
+
+    # --- Generate Parquet File ---
+    print("\n--- Generating Parquet file ---")
+    all_records = []
+    domain_name = "finance"
+    for task, data in finance_domain_data.items():
+        all_records.extend(preprocess_data_for_parquet(domain_name, task, data))
+
+    if all_records:
+        df = pd.DataFrame(all_records)
+        output_filename = "finance_data.parquet"
+        # Define output directory relative to the script's location
+        script_dir = os.path.dirname(__file__)
+        output_dir = os.path.abspath(os.path.join(script_dir, '..', 'DataOutput')) # Go up one level, then into DataOutput
+        # Create DataOutput directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, output_filename)
+        try:
+            df.to_parquet(output_path, index=False)
+            print(f"Successfully generated {output_filename} at {output_path}")
+            print(f"DataFrame Info:\n{df.info()}")
+            print(f"\nFirst 5 rows:\n{df.head().to_string()}")
+        except Exception as e:
+            print(f"Error saving Parquet file: {e}")
+            print("Please ensure 'pandas' and 'pyarrow' are installed (`pip install pandas pyarrow`)")
+    else:
+        print("No records processed, Parquet file not generated.")
