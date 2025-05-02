@@ -5,10 +5,11 @@ requests
 langchain
 huggingface_hub
 python-dotenv
-scikit-learn
-numpy
+scikit-learn # Needed for tabular simulation
+numpy # Needed for tabular simulation
 Pillow # For image processing (Vision, Multimodal)
 decord # For video processing (Multimodal)
+pyarrow # Optional: For saving data in Parquet format
 
 # Optional Audio Libraries (uncomment if needed for specific audio tasks)
 # pydub

@@ -158,6 +158,7 @@
       * **ข้อกำหนด:** ต้องติดตั้ง `pip install transformers torch` (แนะนำให้ติดตั้ง PyTorch ตาม [คำแนะนำอย่างเป็นทางการ](https://pytorch.org/get-started/locally/) เพื่อรองรับ GPU หากมี)
       * **ตัวอย่าง Model:** `"google/vit-base-patch16-224"`, `"microsoft/beit-base-patch16-224"`, หรือโมเดลอื่นๆ ที่รองรับ `AutoModelForImageClassification`
       * **ตัวอย่างคำสั่ง:**
+
         ```bash
         # ใช้โมเดล ViT ทำนาย Label จากรูปใน DatasetVision/Img (ต้องติดตั้ง transformers, torch)
         python DatasetVision/create_image_dataset_csv.py --local_classifier_model google/vit-base-patch16-224 --output_filename vision_dataset_with_model_labels.csv
@@ -228,31 +229,86 @@
 
 ---
 
+## (ใหม่) การสร้างชุดข้อมูล Tabular (`DatasetTabular/`)
+
+สคริปต์ในโฟลเดอร์ `DatasetTabular/` ใช้สำหรับสร้างชุดข้อมูลสำหรับงานเกี่ยวกับข้อมูลตาราง (Tabular Data) โดยส่วนใหญ่เป็นการจำลองข้อมูล (Simulation) และใช้ Local Model สำหรับบาง Task
+
+**ข้อกำหนดเบื้องต้น:**
+
+* **ติดตั้ง Libraries:** จำเป็นต้องติดตั้ง `pandas`, `numpy`, `scikit-learn` (สำหรับการจำลอง) และ `transformers`, `torch` (สำหรับ Tabular-to-Text):
+
+    ```bash
+    pip install pandas numpy scikit-learn transformers torch
+    ```
+
+    *(ตรวจสอบ `requirements.txt` สำหรับรายการทั้งหมด)*
+* **Hardware (สำหรับ Tabular-to-Text):** การรันโมเดล T5 อาจต้องการ GPU หากต้องการความเร็ว
+
+**การกำหนดค่า:**
+
+* แก้ไขไฟล์ `DatasetTabular/config_tabular.py` เพื่อ:
+  * กำหนดจำนวนตัวอย่าง/แถว/ซีรีส์ (`NUM_SAMPLES_PER_TASK`, `TAB_TO_TEXT_N_ROWS`, `TIME_SERIES_LENGTH`, etc.)
+  * กำหนดจำนวน Features/Classes สำหรับ Classification/Regression (`TAB_CLASSIFICATION_N_FEATURES`, etc.)
+  * กำหนด Hugging Face Model ID สำหรับ Tabular-to-Text (`TAB_TO_TEXT_MODEL_ID`, เช่น "t5-small")
+  * กำหนดอุปกรณ์ที่จะใช้สำหรับ T5 (`DEVICE`: "cuda" หรือ "cpu")
+  * กำหนดชื่อไฟล์ CSV ผลลัพธ์
+
+**การรันสคริปต์ (ตัวอย่าง):**
+
+```bash
+# สร้างชุดข้อมูล Tabular Classification (Simulated)
+python DatasetTabular/gen_tabular_classification.py
+
+# สร้างชุดข้อมูล Tabular Regression (Simulated)
+python DatasetTabular/gen_tabular_regression.py
+
+# สร้างชุดข้อมูล Tabular-to-Text (Simulated Table + Local T5)
+# (จะดาวน์โหลดโมเดล T5 หากยังไม่มี)
+python DatasetTabular/gen_tabular_to_text.py
+
+# สร้างชุดข้อมูล Time Series Forecasting (Simulated)
+python DatasetTabular/gen_time_series_forecasting.py
+```
+
+**ผลลัพธ์:**
+
+* ไฟล์ CSV ที่มีข้อมูลตารางจำลอง หรือคู่ข้อมูลตาราง-ข้อความ จะถูกบันทึกใน `DataOutput/`
+
+**หมายเหตุ:**
+
+* ข้อมูล Classification, Regression, และ Time Series เป็นข้อมูล *จำลอง* ที่สร้างขึ้นโดยใช้ `scikit-learn` และ `numpy` ไม่ได้ใช้ Generative AI Model โดยตรง
+* ข้อมูล Tabular-to-Text ใช้ตารางจำลองและโมเดล T5 (เช่น `t5-small`) ในเครื่องเพื่อสร้างคำอธิบาย คุณภาพของคำอธิบายขึ้นอยู่กับโมเดล T5 และความซับซ้อนของตาราง
+* การดาวน์โหลดโมเดล T5 ครั้งแรกอาจใช้เวลาและพื้นที่ดิสก์
+
+---
+
 ## (ใหม่) การสร้างชุดข้อมูล Multimodal (`DatasetMultimodal/`)
 
 สคริปต์ในโฟลเดอร์ `DatasetMultimodal/` ใช้สำหรับสร้างชุดข้อมูลสำหรับงาน Multimodal โดยใช้ **Local Hugging Face Models** ที่ดาวน์โหลดและรันบนเครื่องของคุณ
 
 **ข้อกำหนดเบื้องต้น:**
 
-*   **ติดตั้ง Libraries:** จำเป็นต้องติดตั้ง `transformers`, `torch`, `Pillow` (สำหรับรูปภาพ), และ `decord` (สำหรับวิดีโอ):
+* **ติดตั้ง Libraries:** จำเป็นต้องติดตั้ง `transformers`, `torch`, `Pillow` (สำหรับรูปภาพ), และ `decord` (สำหรับวิดีโอ):
+
     ```bash
     pip install transformers torch Pillow decord
     ```
-*   **Hardware:** การรันโมเดล Multimodal ขนาดใหญ่อาจต้องใช้ GPU ที่มี VRAM เพียงพอ ตรวจสอบข้อกำหนดของโมเดลที่คุณเลือกใช้
-*   **Input Data:**
-    *   สร้างโฟลเดอร์ `placeholder_images/` และใส่ไฟล์รูปภาพตัวอย่าง (เช่น `.jpg`, `.png`)
-    *   สร้างโฟลเดอร์ `placeholder_videos/` และใส่ไฟล์วิดีโอตัวอย่างสั้นๆ (เช่น `.mp4`)
-    *   แก้ไข Path ใน `config_multimodal.py` ให้ชี้ไปยังไฟล์ Input เหล่านี้
+
+* **Hardware:** การรันโมเดล Multimodal ขนาดใหญ่อาจต้องใช้ GPU ที่มี VRAM เพียงพอ ตรวจสอบข้อกำหนดของโมเดลที่คุณเลือกใช้
+* **Input Data:**
+  * สร้างโฟลเดอร์ `placeholder_images/` และใส่ไฟล์รูปภาพตัวอย่าง (เช่น `.jpg`, `.png`)
+  * สร้างโฟลเดอร์ `placeholder_videos/` และใส่ไฟล์วิดีโอตัวอย่างสั้นๆ (เช่น `.mp4`)
+  * แก้ไข Path ใน `config_multimodal.py` ให้ชี้ไปยังไฟล์ Input เหล่านี้
 
 **การกำหนดค่า:**
 
-*   แก้ไขไฟล์ `DatasetMultimodal/config_multimodal.py` เพื่อ:
-    *   กำหนด Hugging Face Model ID สำหรับแต่ละ Task (เช่น `VQA_MODEL_ID`, `VIDEO_CAPTIONING_MODEL_ID`) **ตรวจสอบให้แน่ใจว่าโมเดลเหล่านี้สามารถรันบนเครื่องของคุณได้**
-    *   กำหนดอุปกรณ์ที่จะใช้ (`DEVICE`: "cuda" หรือ "cpu")
-    *   กำหนดจำนวนตัวอย่าง (`NUM_SAMPLES_PER_TASK`)
-    *   กำหนด Path ไปยังไฟล์รูปภาพและวิดีโอ Input (`VQA_INPUT_IMAGES`, `VIDEO_CAPTIONING_INPUT_VIDEOS`)
-    *   กำหนดคำถามสำหรับ VQA (`VQA_QUESTIONS`)
-    *   กำหนดชื่อไฟล์ CSV ผลลัพธ์
+* แก้ไขไฟล์ `DatasetMultimodal/config_multimodal.py` เพื่อ:
+  * กำหนด Hugging Face Model ID สำหรับแต่ละ Task (เช่น `VQA_MODEL_ID`, `VIDEO_CAPTIONING_MODEL_ID`) **ตรวจสอบให้แน่ใจว่าโมเดลเหล่านี้สามารถรันบนเครื่องของคุณได้**
+  * กำหนดอุปกรณ์ที่จะใช้ (`DEVICE`: "cuda" หรือ "cpu")
+  * กำหนดจำนวนตัวอย่าง (`NUM_SAMPLES_PER_TASK`)
+  * กำหนด Path ไปยังไฟล์รูปภาพและวิดีโอ Input (`VQA_INPUT_IMAGES`, `VIDEO_CAPTIONING_INPUT_VIDEOS`)
+  * กำหนดคำถามสำหรับ VQA (`VQA_QUESTIONS`)
+  * กำหนดชื่อไฟล์ CSV ผลลัพธ์
 
 **การรันสคริปต์ (ตัวอย่าง):**
 
@@ -268,13 +324,13 @@ python DatasetMultimodal/gen_video_text_to_text.py
 
 **ผลลัพธ์:**
 
-*   ไฟล์ CSV ที่มีข้อมูล Input (Path รูปภาพ/วิดีโอ, คำถาม) และ Output ที่สร้างโดยโมเดล (คำตอบ, คำบรรยาย) จะถูกบันทึกใน `DataOutput/`
+* ไฟล์ CSV ที่มีข้อมูล Input (Path รูปภาพ/วิดีโอ, คำถาม) และ Output ที่สร้างโดยโมเดล (คำตอบ, คำบรรยาย) จะถูกบันทึกใน `DataOutput/`
 
 **หมายเหตุ:**
 
-*   การดาวน์โหลดโมเดลครั้งแรกอาจใช้เวลาและพื้นที่ดิสก์
-*   ประสิทธิภาพและความเร็วในการสร้างข้อมูลขึ้นอยู่กับ Hardware ของคุณและขนาดของโมเดล
-*   การประมวลผลวิดีโออาจมีความซับซ้อนและขึ้นอยู่กับ Library `decord` และ Format ของวิดีโอ
+* การดาวน์โหลดโมเดลครั้งแรกอาจใช้เวลาและพื้นที่ดิสก์
+* ประสิทธิภาพและความเร็วในการสร้างข้อมูลขึ้นอยู่กับ Hardware ของคุณและขนาดของโมเดล
+* การประมวลผลวิดีโออาจมีความซับซ้อนและขึ้นอยู่กับ Library `decord` และ Format ของวิดีโอ
 
 ---
 
@@ -286,12 +342,13 @@ python DatasetMultimodal/gen_video_text_to_text.py
 
 สคริปต์นี้ใช้สำหรับสแกนหาไฟล์เสียงในไดเรกทอรีที่ระบุ และสร้างไฟล์ CSV ที่มีรายการไฟล์เสียงเหล่านั้น พร้อม Label ที่ได้จากชื่อโฟลเดอร์ย่อย (ถ้ามี)
 
-*   **การทำงาน:**
-    *   รับ Path ของไดเรกทอรีที่มีไฟล์เสียง (`--input_dir`) และชื่อไฟล์ CSV ผลลัพธ์ (`--output_filename`) เป็น Argument (ค่าเริ่มต้น `--input_dir` คือ `placeholder_audio/`)
-    *   สแกนหาไฟล์เสียง (เช่น `.wav`, `.mp3`, `.flac`) ในไดเรกทอรีที่ระบุ (ค่าเริ่มต้นคือสแกนแบบ Recursive `--recursive`, ใช้ `--no-recursive` หากไม่ต้องการ)
-    *   สร้างไฟล์ CSV ใน `DataOutput/` ที่มีคอลัมน์ `id` (UUID) และ `audio_path` (Path สัมพัทธ์จากรากโปรเจกต์)
-    *   **การกำหนด Label:** หากไฟล์เสียงถูกจัดอยู่ในโฟลเดอร์ย่อย จะใช้ชื่อโฟลเดอร์ย่อยนั้นเป็น `label` ในไฟล์ CSV (ถ้าไม่มีโฟลเดอร์ย่อย หรือไฟล์อยู่ในระดับบนสุดของ `input_dir` Label จะเป็น "unknown") หากไม่มี Label ที่มีความหมาย (เช่น มีแต่ "unknown") คอลัมน์ `label` จะไม่ถูกสร้างขึ้น
-*   **การรัน (ตัวอย่าง):**
+* **การทำงาน:**
+  * รับ Path ของไดเรกทอรีที่มีไฟล์เสียง (`--input_dir`) และชื่อไฟล์ CSV ผลลัพธ์ (`--output_filename`) เป็น Argument (ค่าเริ่มต้น `--input_dir` คือ `placeholder_audio/`)
+  * สแกนหาไฟล์เสียง (เช่น `.wav`, `.mp3`, `.flac`) ในไดเรกทอรีที่ระบุ (ค่าเริ่มต้นคือสแกนแบบ Recursive `--recursive`, ใช้ `--no-recursive` หากไม่ต้องการ)
+  * สร้างไฟล์ CSV ใน `DataOutput/` ที่มีคอลัมน์ `id` (UUID) และ `audio_path` (Path สัมพัทธ์จากรากโปรเจกต์)
+  * **การกำหนด Label:** หากไฟล์เสียงถูกจัดอยู่ในโฟลเดอร์ย่อย จะใช้ชื่อโฟลเดอร์ย่อยนั้นเป็น `label` ในไฟล์ CSV (ถ้าไม่มีโฟลเดอร์ย่อย หรือไฟล์อยู่ในระดับบนสุดของ `input_dir` Label จะเป็น "unknown") หากไม่มี Label ที่มีความหมาย (เช่น มีแต่ "unknown") คอลัมน์ `label` จะไม่ถูกสร้างขึ้น
+* **การรัน (ตัวอย่าง):**
+
     ```bash
     # สแกนโฟลเดอร์ placeholder_audio/ (ค่าเริ่มต้น) และสร้าง custom_audio_dataset.csv
     python DatasetAudio/create_audio_dataset_csv.py
@@ -305,12 +362,13 @@ python DatasetMultimodal/gen_video_text_to_text.py
 สคริปต์เหล่านี้ (`gen_text_to_speech.py`, `gen_automatic_speech_recognition.py`, etc.) ใช้สำหรับสร้างข้อมูลเสียงประเภทต่างๆ โดยเรียกใช้งาน Hugging Face Inference API (ต้องตั้งค่า `HF_TOKEN` ใน `.env`) หรืออาจต้องติดตั้งไลบรารีเพิ่มเติมสำหรับบาง Task
 
 **การกำหนดค่า:**
-*   แก้ไขไฟล์ `DatasetAudio/config_audio.py` เพื่อ:
-    *   กำหนด Hugging Face Model ID สำหรับแต่ละ Task (เช่น `TTS_MODEL_ID`, `ASR_MODEL_ID`)
-    *   กำหนดจำนวนตัวอย่างที่จะสร้าง (`NUM_SAMPLES_PER_TASK`)
-    *   เตรียมข้อมูล Input (เช่น ข้อความใน `TTS_INPUT_TEXTS`, Path ของไฟล์เสียงใน `ASR_INPUT_AUDIO`)
-        *   **สำคัญ:** สำหรับ Task ที่ต้องการไฟล์เสียง Input (ASR, Audio Classification, VAD, Audio-to-Audio) ให้สร้างโฟลเดอร์ `placeholder_audio/` ในรากโปรเจกต์ และนำไฟล์เสียง (เช่น `.wav`, `.mp3`) ไปวางไว้ หรือแก้ไข Path ใน `config_audio.py` ให้ถูกต้อง สคริปต์จะพยายามสร้างไฟล์ dummy `.wav` หากตรวจไม่พบและติดตั้ง `pydub` ไว้ (`pip install pydub`)
-    *   กำหนดชื่อไฟล์ CSV ผลลัพธ์ (เช่น `TTS_FILENAME`)
+
+* แก้ไขไฟล์ `DatasetAudio/config_audio.py` เพื่อ:
+  * กำหนด Hugging Face Model ID สำหรับแต่ละ Task (เช่น `TTS_MODEL_ID`, `ASR_MODEL_ID`)
+  * กำหนดจำนวนตัวอย่างที่จะสร้าง (`NUM_SAMPLES_PER_TASK`)
+  * เตรียมข้อมูล Input (เช่น ข้อความใน `TTS_INPUT_TEXTS`, Path ของไฟล์เสียงใน `ASR_INPUT_AUDIO`)
+    * **สำคัญ:** สำหรับ Task ที่ต้องการไฟล์เสียง Input (ASR, Audio Classification, VAD, Audio-to-Audio) ให้สร้างโฟลเดอร์ `placeholder_audio/` ในรากโปรเจกต์ และนำไฟล์เสียง (เช่น `.wav`, `.mp3`) ไปวางไว้ หรือแก้ไข Path ใน `config_audio.py` ให้ถูกต้อง สคริปต์จะพยายามสร้างไฟล์ dummy `.wav` หากตรวจไม่พบและติดตั้ง `pydub` ไว้ (`pip install pydub`)
+  * กำหนดชื่อไฟล์ CSV ผลลัพธ์ (เช่น `TTS_FILENAME`)
 
 **การรันสคริปต์ (ตัวอย่าง):**
 
@@ -336,13 +394,13 @@ python DatasetAudio/gen_audio_to_audio.py
 
 **ผลลัพธ์ (สำหรับ `gen_*.py`):**
 
-*   ไฟล์ CSV ที่มีข้อมูล Input และ Output (เช่น Path ไฟล์เสียงที่สร้าง, ข้อความที่ถอดความ, ผลการจำแนก) จะถูกบันทึกใน `DataOutput/`
-*   ไฟล์เสียงที่สร้างขึ้น (จาก TTS, Text-to-Audio, Audio-to-Audio) จะถูกบันทึกใน `DataOutput/generated_media/audio/`
+* ไฟล์ CSV ที่มีข้อมูล Input และ Output (เช่น Path ไฟล์เสียงที่สร้าง, ข้อความที่ถอดความ, ผลการจำแนก) จะถูกบันทึกใน `DataOutput/`
+* ไฟล์เสียงที่สร้างขึ้น (จาก TTS, Text-to-Audio, Audio-to-Audio) จะถูกบันทึกใน `DataOutput/generated_media/audio/`
 
 **หมายเหตุ (สำหรับ `gen_*.py`):**
 
-*   ความสำเร็จของการเรียก API ขึ้นอยู่กับ Model ที่เลือก, สถานะของ Hugging Face Inference API, และ Token ของคุณ
-*   บาง Task (เช่น VAD, Audio-to-Audio) อาจทำงานได้ไม่สมบูรณ์ผ่าน API ทั่วไป และอาจต้องใช้ Library เฉพาะทาง (เช่น `pyannote.audio`, `librosa`, `torchaudio`) และรันโมเดลในเครื่อง
+* ความสำเร็จของการเรียก API ขึ้นอยู่กับ Model ที่เลือก, สถานะของ Hugging Face Inference API, และ Token ของคุณ
+* บาง Task (เช่น VAD, Audio-to-Audio) อาจทำงานได้ไม่สมบูรณ์ผ่าน API ทั่วไป และอาจต้องใช้ Library เฉพาะทาง (เช่น `pyannote.audio`, `librosa`, `torchaudio`) และรันโมเดลในเครื่อง
 
 ---
 

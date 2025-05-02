@@ -58,6 +58,14 @@
     * Video-Text-to-Text (Video Captioning): สร้างคำบรรยายสำหรับวิดีโอ
   * กำหนดค่าได้ง่ายผ่าน `config_multimodal.py` (Model IDs, Input Paths, Output Paths)
   * บันทึกผลลัพธ์เป็นไฟล์ CSV ใน `DataOutput/`
+* **(ใหม่) Tabular Dataset Generation (`DatasetTabular/`):**
+  * สร้างข้อมูลตัวอย่างสำหรับงานเกี่ยวกับข้อมูลตาราง:
+    * Tabular Classification (Simulated): สร้างข้อมูลตารางพร้อม Label สำหรับ Classification
+    * Tabular Regression (Simulated): สร้างข้อมูลตารางพร้อม Target Value สำหรับ Regression
+    * Tabular-to-Text (Local T5 Model): สร้างคำอธิบายข้อความจากตารางที่จำลองขึ้น โดยใช้โมเดล T5 ในเครื่อง (ต้องติดตั้ง `transformers`, `torch`)
+    * Time Series Forecasting (Simulated): สร้างข้อมูลอนุกรมเวลาแบบง่ายๆ
+  * กำหนดค่าได้ง่ายผ่าน `config_tabular.py` (จำนวนตัวอย่าง, ขนาดข้อมูล, Model ID สำหรับ T5)
+  * บันทึกผลลัพธ์เป็นไฟล์ CSV ใน `DataOutput/`
 * **Dataset Utilities & Demonstrations (`Script/Dataset/`):**
   * **Content Moderation:** ตรวจสอบเนื้อหาที่ไม่เหมาะสม (`content_moderation.py`)
   * **Conversation Simulation:** จำลองและวิเคราะห์บทสนทนา (`conversation_simulation.py`)
@@ -174,37 +182,44 @@ aibuilderPart1/
 ├── DatasetVision/        # สคริปต์สร้างชุดข้อมูล Vision
 │   ├── config_vision.py
 │   ├── vision_utils.py
-│   ├── create_image_dataset_csv.py # <-- New Script
-│   ├── gen_*.py          # สคริปต์สร้างข้อมูลแต่ละประเภท
+│   ├── create_image_dataset_csv.py
+│   ├── gen_*.py
 │   └── ...
 ├── DatasetAudio/         # (ใหม่) สคริปต์สร้างชุดข้อมูล Audio
 │   ├── config_audio.py
 │   ├── audio_utils.py
-│   ├── create_audio_dataset_csv.py # (ใหม่) สร้าง CSV จากไฟล์เสียง
-│   ├── gen_*.py          # สคริปต์สร้างข้อมูล Audio แต่ละประเภท
+│   ├── create_audio_dataset_csv.py
+│   ├── gen_*.py
 │   └── ...
 ├── DatasetMultimodal/    # (ใหม่) สคริปต์สร้างชุดข้อมูล Multimodal (Local Models)
 │   ├── config_multimodal.py
 │   ├── multimodal_utils.py
-│   ├── gen_visual_question_answering.py
-│   ├── gen_video_text_to_text.py # (Video Captioning)
+│   ├── gen_*.py
+│   └── ...
+├── DatasetTabular/       # (ใหม่) สคริปต์สร้างชุดข้อมูล Tabular (Simulated/Local)
+│   ├── config_tabular.py
+│   ├── tabular_utils.py
+│   ├── gen_tabular_classification.py
+│   ├── gen_tabular_regression.py
+│   ├── gen_tabular_to_text.py
+│   ├── gen_time_series_forecasting.py
 │   └── ...
 ├── docs/                 # เอกสารประกอบ
 │   └── USAGE.md
 ├── Model/                # ที่เก็บโมเดลที่ดาวน์โหลด/ฝึก (สำหรับ NLP demos)
 ├── Script/               # สคริปต์หลัก (NLP)
-│   ├── Dataset/          # สคริปต์สาธิต/ประเมินผล NLP ตามประเภทงาน
-│   ├── Generate/         # สคริปต์สร้างชุดข้อมูล NLP
+│   ├── Dataset/
+│   ├── Generate/
 │   ├── download_model.py
 │   └── upload_model_to_hf.py
 ├── placeholder_images/   # (แนะนำให้สร้าง) ที่เก็บรูปภาพ Input สำหรับ Vision/Multimodal tasks
 ├── placeholder_audio/    # (แนะนำให้สร้าง) ที่เก็บไฟล์เสียง Input สำหรับ Audio tasks
-├── placeholder_videos/   # (ใหม่) (แนะนำให้สร้าง) ที่เก็บไฟล์วิดีโอ Input สำหรับ Multimodal tasks
+├── placeholder_videos/   # (แนะนำให้สร้าง) ที่เก็บไฟล์วิดีโอ Input สำหรับ Multimodal tasks
 ├── DataOutput/           # โฟลเดอร์ผลลัพธ์ (สร้างอัตโนมัติ)
-│   ├── generated_media/  # ที่เก็บไฟล์ Media ที่สร้างโดย Vision/Audio API scripts
+│   ├── generated_media/
 │   │   ├── audio/
 │   │   └── ...
-│   └── *.csv             # ไฟล์ CSV ที่สร้างโดยสคริปต์ต่างๆ
+│   └── *.csv
 ├── README.md             # ไฟล์นี้
 ├── requirements.txt      # รายการ Dependencies
 └── .env                  # (ต้องสร้าง) เก็บค่า Environment Variables
