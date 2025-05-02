@@ -1,0 +1,83 @@
+import os
+import pandas as pd
+from langchain_core.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from config_generate import OUTPUT_DIR, SENTENCE_SIMILARITY_FILENAME
+from gen_utils import parse_json_output, invoke_llm_with_retry
+
+# Template for Sentence Similarity Data
+sentence_similarity_template_text = """
+<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+คุณคือ AI ผู้ช่วยสร้างข้อมูลสำหรับงาน Sentence Similarity ภาษาไทย
+หน้าที่ของคุณคือสร้าง 'sentence1', 'sentence2' และ 'label' (similar หรือ dissimilar) ที่บ่งบอกความสัมพันธ์ของสองประโยค 1 ชุด
+สร้างเฉพาะ sentence1, sentence2, และ label เท่านั้น ในรูปแบบ JSON ตามตัวอย่าง
+
+ตัวอย่าง:
+หัวข้อ: ความหมายเหมือนกัน
+ผลลัพธ์ JSON:
+```json
+{{
+  "sentence1": "แมวกำลังนอนหลับอยู่บนโซฟา",
+  "sentence2": "เจ้าเหมียวกำลังพักผ่อนบนเก้าอี้ยาว",
+  "label": "similar"
+}}
+```
+ตัวอย่าง:
+หัวข้อ: ความหมายต่างกัน
+ผลลัพธ์ JSON:
+```json
+{{
+  "sentence1": "วันนี้อากาศร้อนมาก",
+  "sentence2": "ฉันชอบกินไอศกรีมช็อกโกแลต",
+  "label": "dissimilar"
+}}
+```
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+หัวข้อ: {topic}
+ผลลัพธ์ JSON:<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+```json
+"""
+sentence_similarity_prompt = PromptTemplate(
+    input_variables=["topic"],
+    template=sentence_similarity_template_text
+)
+
+def generate_sentence_similarity_data(llm, num_samples, topics, filename=SENTENCE_SIMILARITY_FILENAME):
+    """Generates Sentence Similarity data."""
+    if not llm:
+        print("LLM not initialized. Skipping Sentence Similarity data generation.")
+        return
+
+    chain = LLMChain(llm=llm, prompt=sentence_similarity_prompt)
+    data = []
+    print(f"\nGenerating {num_samples} Sentence Similarity samples...")
+
+    generated_count = 0
+    while generated_count < num_samples:
+        topic = topics[generated_count % len(topics)]
+        print(f"Generating sample {generated_count + 1}/{num_samples} (Topic: {topic})...")
+
+        llm_output = invoke_llm_with_retry(chain, {"topic": topic})
+
+        if llm_output:
+            parsed_data = parse_json_output(llm_output)
+            if parsed_data and 'sentence1' in parsed_data and 'sentence2' in parsed_data and 'label' in parsed_data:
+                 # Basic validation: check sentences non-empty and label is valid
+                 if parsed_data['sentence1'].strip() and parsed_data['sentence2'].strip() and parsed_data['label'] in ['similar', 'dissimilar']:
+                     data.append(parsed_data)
+                     generated_count += 1
+                 else:
+                     print("Warning: Generated sentences empty or invalid label. Skipping.")
+            else:
+                print("Warning: Failed to parse valid Sentence Similarity data from LLM output.")
+        else:
+             print("Warning: LLM invocation failed after retries.")
+
+    # Save to CSV
+    if data:
+        df = pd.DataFrame(data)
+        output_path = os.path.join(OUTPUT_DIR, filename)
+        df.to_csv(output_path, index=False, encoding='utf-8')
+        print(f"Successfully generated and saved {len(data)} samples to {output_path}")
+    else:
+        print("No Sentence Similarity data was generated.")
