@@ -201,6 +201,7 @@
       # ตัวอย่าง: แปลไฟล์ Parquet (สมมติมีคอลัมน์ 'text_en')
       # python DatasetTranslation/translate_tabular_en_th.py input_data.parquet -c text_en -o DataOutput/translated_from_parquet.parquet -of parquet
       ```
+
       *(ใช้ `python DatasetTranslation/translate_tabular_en_th.py --help` เพื่อดูตัวเลือกทั้งหมด)*
 
     * **แปลไฟล์ WebDataset:**
@@ -209,8 +210,8 @@
       # ตัวอย่าง: แปล WebDataset shards (สมมติข้อความอังกฤษอยู่ในคีย์ '.en.txt')
       # python DatasetTranslation/translate_webdataset_en_th.py "path/to/input-{000..005}.tar" -o DataOutput/translated_webdataset.jsonl --text_key en.txt --output_key th_translation.txt
       ```
-      *(ใช้ `python DatasetTranslation/translate_webdataset_en_th.py --help` เพื่อดูตัวเลือกทั้งหมด)*
 
+      *(ใช้ `python DatasetTranslation/translate_webdataset_en_th.py --help` เพื่อดูตัวเลือกทั้งหมด)*
 
     *(สคริปต์ใน `DatasetTranslation/` จะใช้โมเดล Helsinki-NLP เพื่อแปลข้อความภาษาอังกฤษในชุดข้อมูลที่ระบุให้เป็นภาษาไทย และบันทึกผลลัพธ์ใน `DataOutput/`)*
 

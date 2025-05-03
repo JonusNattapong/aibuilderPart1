@@ -6,6 +6,10 @@ from huggingface_hub import InferenceClient, hf_hub_download
 from PIL import Image
 import io
 from config_vision import HF_API_TOKEN, MAX_RETRIES, RETRY_DELAY, GENERATED_MEDIA_DIR
+from dotenv import load_dotenv # Added
+
+# Load environment variables from .env file
+load_dotenv() # Added
 
 # Initialize Inference Client (if token is provided)
 client = None

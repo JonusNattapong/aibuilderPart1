@@ -1,7 +1,11 @@
 import os
-from huggingface_hub import HfApi, upload_folder
+from huggingface_hub import HfApi, upload_folder, HfFolder, Repository # Added Repository
 import logging
 import argparse
+from dotenv import load_dotenv # Added
+
+# Load environment variables from .env file
+load_dotenv() # Added
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -12,7 +16,7 @@ BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # --- Command Line Arguments ---
 def parse_args():
-    parser = argparse.ArgumentParser(descriฤption="Upload a local Hugging Face model to the Hub.")
+    parser = argparse.ArgumentParser(description="Upload a local Hugging Face model to the Hub.")
     parser.add_argument(
         "--local_model_name",
         type=str,
@@ -64,17 +68,17 @@ def upload_model_to_hub(local_model_dir, repo_id, commit_message, create_repo):
             # use HfApi().create_repo instead if needed explicitly before upload.
         )
 
-        # Optional: Explicitly create repo if flag is set and upload_folder doesn't handle it reliably
-        # This requires checking if the repo exists first, which adds complexity.
-        # For simplicity, relying on user creating it or potential implicit creation by upload_folder.
-        # if create_repo:
-        #     try:
-        #         api = HfApi()
-        #         api.create_repo(repo_id=repo_id, repo_type="model", exist_ok=True)
-        #         logging.info(f"Ensured repository '{repo_id}' exists.")
-        #     except Exception as create_err:
-        #         logging.warning(f"Could not explicitly create/verify repository '{repo_id}': {create_err}. Upload might still succeed if repo exists.")
+        # Ensure token is loaded (it should be if .env is set and load_dotenv() called)
+        token = HfFolder.get_token()
+        if not token:
+            # Fallback to environment variable if not logged in via CLI
+            token = os.environ.get("HF_TOKEN")
+            if not token:
+                print("Error: Hugging Face token not found.")
+                print("Please login using `huggingface-cli login` or set HF_TOKEN in your .env file.")
+                return
 
+        print(f"Using Hugging Face token for authentication.")
 
         logging.info(f"Successfully uploaded contents of {local_model_dir} to {repo_id}")
 

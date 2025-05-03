@@ -6,11 +6,18 @@ import argparse
 import sys
 import json
 import itertools
+from dotenv import load_dotenv # Added
+
+# Load environment variables from .env file
+load_dotenv() # Added
 
 # Define paths relative to the script location or a base path
-BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # Project root
-DEFAULT_OUTPUT_DIR = os.path.join(BASE_PATH, 'DataOutput')
-MODEL_NAME = "Helsinki-NLP/opus-mt-en-th"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_PATH = os.path.dirname(SCRIPT_DIR) # Project root
+DEFAULT_INPUT_DIR = os.path.join(SCRIPT_DIR, 'input') # Default input specific to translation scripts
+DEFAULT_OUTPUT_DIR = os.path.join(BASE_PATH, 'output') # Output remains at project level
+DEFAULT_MODEL_DIR = os.path.join(BASE_PATH, 'download') # Model remains at project level
+MODEL_NAME = "Helsinki-NLP/opus-mt-en-th" # Model identifier for Hugging Face Hub
 DEFAULT_BATCH_SIZE = 32   # Translate 32 sentences per batch on GPU/CPU
 
 # Check for webdataset library
@@ -159,9 +166,9 @@ if __name__ == "__main__":
         sys.exit(1) # Exit if library is not installed
 
     parser = argparse.ArgumentParser(description="Translate English text in WebDataset shards to Thai using batching.")
-    parser.add_argument("input_shards", nargs='+', help="Path(s) or URL(s) to the input WebDataset shard(s) (e.g., 'data/input-{000..001}.tar').")
+    parser.add_argument("input_shards", nargs='+', help=f"Path(s) or URL(s) to the input WebDataset shard(s) (e.g., '{os.path.join(os.path.relpath(DEFAULT_INPUT_DIR, BASE_PATH), 'input-{000..001}.tar')}', 'gs://bucket/data-{{0..9}}.tar'). Assumes relative paths are inside '{os.path.relpath(DEFAULT_INPUT_DIR, BASE_PATH)}' if not found.")
     parser.add_argument("-o", "--output_path", default=None,
-                        help=f"Path to the output JSON Lines file. Defaults to 'translated_output.jsonl' in '{DEFAULT_OUTPUT_DIR}'.")
+                        help=f"Path to the output JSON Lines file. Defaults to 'translated_webdataset_output.jsonl' in '{os.path.relpath(DEFAULT_OUTPUT_DIR, BASE_PATH)}'.")
     parser.add_argument("--text_key", default="en.txt",
                         help="Key (extension) in the WebDataset containing English text (default: en.txt).")
     parser.add_argument("--output_key", default="th.txt",
@@ -176,11 +183,43 @@ if __name__ == "__main__":
 
     print("--- English to Thai WebDataset Translation Script (Batched) ---")
 
+    # Ensure input directory exists (optional, good practice)
+    os.makedirs(DEFAULT_INPUT_DIR, exist_ok=True)
+
+    # Resolve input shard paths (check relative to DEFAULT_INPUT_DIR if needed)
+    resolved_shards = []
+    for shard_path in args.input_shards:
+        # Basic check: if not a URL and not absolute/existing relative to cwd, check in DEFAULT_INPUT_DIR
+        if not ('://' in shard_path or os.path.isabs(shard_path) or os.path.exists(shard_path)):
+            path_in_default = os.path.join(DEFAULT_INPUT_DIR, shard_path)
+            # Note: WebDataset handles brace expansion, so checking existence directly might not work perfectly for patterns.
+            # We'll assume if it's relative and doesn't exist, it might be in the default dir.
+            # A more robust check would involve trying to list files matching the pattern.
+            # For simplicity, we prepend the default dir path if it looks like a relative file path.
+            if '{' not in shard_path and '}' not in shard_path: # Simple check if it's not a pattern
+                 if os.path.exists(path_in_default):
+                     resolved_shards.append(path_in_default)
+                     print(f"Input shard '{shard_path}' found in default translation input directory: {path_in_default}")
+                 else:
+                     resolved_shards.append(shard_path) # Keep original if not found
+                     print(f"Warning: Input shard '{shard_path}' not found directly or in '{os.path.relpath(DEFAULT_INPUT_DIR, BASE_PATH)}'.")
+            else:
+                 # If it's a pattern, assume it might be relative to the default dir if not absolute
+                 # Prepend default dir path - WebDataset library will handle resolution
+                 resolved_shards.append(os.path.join(DEFAULT_INPUT_DIR, shard_path))
+
+
+        else:
+            resolved_shards.append(shard_path) # Keep absolute paths or URLs as is
+
     # Determine output path
     output_path = args.output_path
     if not output_path:
-        output_filename = "translated_output.jsonl"
+        output_filename = "translated_webdataset_output.jsonl" # More specific default name
         output_path = os.path.join(DEFAULT_OUTPUT_DIR, output_filename)
+    elif not os.path.isabs(output_path):
+         # If output path is relative, place it in DEFAULT_OUTPUT_DIR
+         output_path = os.path.join(DEFAULT_OUTPUT_DIR, output_path)
 
     # Ensure output directory exists and clear existing file
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -196,8 +235,8 @@ if __name__ == "__main__":
     translator = load_translator(args.batch_size)
 
     if translator:
-        # Translate
-        translate_webdataset(args.input_shards, output_path, translator,
+        # Translate using resolved shard paths
+        translate_webdataset(resolved_shards, output_path, translator,
                              text_key=args.text_key, output_key=args.output_key,
                              metadata_key=args.metadata_key, batch_size=args.batch_size)
     else:

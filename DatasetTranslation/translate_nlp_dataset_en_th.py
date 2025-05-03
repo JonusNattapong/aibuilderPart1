@@ -4,13 +4,21 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 import time
 import sys
+from dotenv import load_dotenv # Added
+
+# Load environment variables from .env file
+load_dotenv() # Added
 
 # Define paths relative to the script location or a base path
-BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # Project root
-# Add DatasetNLP path to sys.path to import the data
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_PATH = os.path.dirname(SCRIPT_DIR) # Project root
+DEFAULT_INPUT_DIR = os.path.join(BASE_PATH, 'DataInput') # Standard input location (though not directly used here)
+DEFAULT_OUTPUT_DIR = os.path.join(BASE_PATH, 'output') # Output remains at project level
+DEFAULT_MODEL_DIR = os.path.join(BASE_PATH, 'download') # Model remains at project level
+# Add DatasetNLP path to sys.path to import the data - Keep this specific path for this script
 sys.path.append(os.path.join(BASE_PATH, 'DatasetNLP'))
-OUTPUT_CSV = os.path.join(BASE_PATH, 'DataOutput', 'translated_en_to_th_from_nlp_dataset.csv')
-MODEL_NAME = "Helsinki-NLP/opus-mt-en-th"
+OUTPUT_CSV = os.path.join(DEFAULT_OUTPUT_DIR, 'translated_en_to_th_from_nlp_dataset.csv') # Use DEFAULT_OUTPUT_DIR
+MODEL_NAME = "Helsinki-NLP/opus-mt-en-th" # Model identifier for Hugging Face Hub
 
 # Attempt to import the data
 try:

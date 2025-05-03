@@ -5,6 +5,10 @@ import json
 from huggingface_hub import InferenceClient
 from config_audio import HF_API_TOKEN, MAX_RETRIES, RETRY_DELAY, GENERATED_MEDIA_DIR, BASE_PATH
 import io
+from dotenv import load_dotenv # Added
+
+# Load environment variables from .env file
+load_dotenv() # Added
 
 # Initialize Inference Client (if token is provided)
 client = None

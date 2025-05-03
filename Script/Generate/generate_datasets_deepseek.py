@@ -4,6 +4,10 @@ import json
 import time
 import pandas as pd
 import re
+from dotenv import load_dotenv # Added
+
+# Load environment variables from .env file
+load_dotenv() # Added
 
 # Import configuration (assuming config_generate.py is in the same directory)
 from config_generate import (

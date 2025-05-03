@@ -3,12 +3,21 @@ import pandas as pd
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 import time
+import argparse # Add argparse for flexibility
+import sys
 
 # Define paths relative to the script location or a base path
-BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # Project root
-INPUT_CSV = os.path.join(BASE_PATH, 'DataOutput', 'thai_dataset_translation_en_th.csv')
-OUTPUT_CSV = os.path.join(BASE_PATH, 'DataOutput', 'translated_en_to_th_from_csv.csv')
-MODEL_NAME = "Helsinki-NLP/opus-mt-en-th"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_PATH = os.path.dirname(SCRIPT_DIR) # Project root
+DEFAULT_INPUT_DIR = os.path.join(SCRIPT_DIR, 'input') # Default input specific to translation scripts
+DEFAULT_OUTPUT_DIR = os.path.join(BASE_PATH, 'output') # Output remains at project level
+DEFAULT_MODEL_DIR = os.path.join(BASE_PATH, 'download') # Model remains at project level
+# Default input CSV name, expected in DEFAULT_INPUT_DIR
+DEFAULT_INPUT_FILENAME = 'thai_dataset_translation_en_th.csv'
+# Default output CSV name, will be saved in DEFAULT_OUTPUT_DIR
+DEFAULT_OUTPUT_FILENAME = 'translated_en_to_th_from_csv.csv'
+MODEL_NAME = "Helsinki-NLP/opus-mt-en-th" # Model identifier for Hugging Face Hub
+DEFAULT_BATCH_SIZE = 32 # Add batch size for consistency
 
 def load_translator():
     """Loads the translation pipeline."""
@@ -58,19 +67,45 @@ def translate_dataframe(df, translator, text_column='english_text'):
     return translations
 
 if __name__ == "__main__":
-    print("--- English to Thai CSV Translation Script ---")
+    parser = argparse.ArgumentParser(description="Translate an English text column in a CSV file to Thai using batching.")
+    parser.add_argument("-i", "--input_path", default=os.path.join(DEFAULT_INPUT_DIR, DEFAULT_INPUT_FILENAME),
+                        help=f"Path to the input CSV file. Defaults to '{DEFAULT_INPUT_FILENAME}' in '{os.path.relpath(DEFAULT_INPUT_DIR, BASE_PATH)}'.")
+    parser.add_argument("-o", "--output_path", default=os.path.join(DEFAULT_OUTPUT_DIR, DEFAULT_OUTPUT_FILENAME),
+                        help=f"Path to the output CSV file. Defaults to '{DEFAULT_OUTPUT_FILENAME}' in '{os.path.relpath(DEFAULT_OUTPUT_DIR, BASE_PATH)}'.")
 
-    # Ensure output directory exists
-    os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+    args = parser.parse_args()
 
-    # Load data
-    if not os.path.exists(INPUT_CSV):
-        print(f"Error: Input CSV file not found at {INPUT_CSV}")
-        print("Please generate it first (e.g., by running Dataset/CSV/translation_en_th_dataset.py)")
+    print("--- English to Thai CSV Translation Script (Batched) ---")
+
+    # Ensure input and output directories exist
+    os.makedirs(DEFAULT_INPUT_DIR, exist_ok=True)
+    os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
+
+    # Resolve input path (similar logic to tabular script)
+    input_path_resolved = args.input_path
+    if not os.path.isabs(input_path_resolved) and not os.path.exists(input_path_resolved):
+        # Check if the default path (which includes DEFAULT_INPUT_DIR) exists
+        default_path_check = os.path.join(DEFAULT_INPUT_DIR, DEFAULT_INPUT_FILENAME)
+        if args.input_path == default_path_check and os.path.exists(default_path_check):
+             input_path_resolved = default_path_check
+             # print(f"Using default input file: {input_path_resolved}") # Already default
+        elif os.path.exists(os.path.join(DEFAULT_INPUT_DIR, args.input_path)):
+             input_path_resolved = os.path.join(DEFAULT_INPUT_DIR, args.input_path)
+             print(f"Input file found in default translation input directory: {input_path_resolved}")
+        else:
+            # Keep original path, let pd.read_csv handle FileNotFoundError
+            print(f"Warning: Input file not found at '{args.input_path}' or in '{os.path.relpath(DEFAULT_INPUT_DIR, BASE_PATH)}'.")
+
+
+    # Load data using the resolved path
+    if not os.path.exists(input_path_resolved):
+        print(f"Error: Input CSV file not found at {input_path_resolved}")
+        print(f"Please ensure the file exists or generate it (e.g., by running Dataset/CSV/translation_en_th_dataset.py and placing it in {os.path.relpath(DEFAULT_INPUT_DIR, BASE_PATH)}).")
+        sys.exit(1)
     else:
-        print(f"Reading data from {INPUT_CSV}...")
+        print(f"Reading data from {input_path_resolved}...")
         try:
-            df = pd.read_csv(INPUT_CSV)
+            df = pd.read_csv(input_path_resolved)
 
             # Load translator
             translator = load_translator()
@@ -80,8 +115,8 @@ if __name__ == "__main__":
                 df['translated_thai'] = translate_dataframe(df, translator, text_column='english_text')
 
                 # Save results
-                print(f"Saving translated data to {OUTPUT_CSV}...")
-                df.to_csv(OUTPUT_CSV, index=False, encoding='utf-8')
+                print(f"Saving translated data to {args.output_path}...")
+                df.to_csv(args.output_path, index=False, encoding='utf-8')
                 print("Translation complete and saved.")
             else:
                 print("Translation process aborted due to model loading failure.")

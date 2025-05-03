@@ -1,4 +1,11 @@
 import os
+import json
+import time
+from dotenv import load_dotenv # Added
+
+# Load environment variables from .env file
+load_dotenv() # Added
+
 from langchain_huggingface import HuggingFaceEndpoint
 # Import configuration
 from config_generate import (

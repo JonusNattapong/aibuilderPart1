@@ -6,11 +6,18 @@ import time
 import argparse
 import sys
 import math
+from dotenv import load_dotenv # Added
+
+# Load environment variables from .env file
+load_dotenv() # Added
 
 # Define paths relative to the script location or a base path
-BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # Project root
-DEFAULT_OUTPUT_DIR = os.path.join(BASE_PATH, 'DataOutput')
-MODEL_NAME = "Helsinki-NLP/opus-mt-en-th"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_PATH = os.path.dirname(SCRIPT_DIR) # Project root
+DEFAULT_INPUT_DIR = os.path.join(SCRIPT_DIR, 'input') # Default input specific to translation scripts
+DEFAULT_OUTPUT_DIR = os.path.join(BASE_PATH, 'output') # Output remains at project level
+DEFAULT_MODEL_DIR = os.path.join(BASE_PATH, 'download') # Model remains at project level
+MODEL_NAME = "Helsinki-NLP/opus-mt-en-th" # Model identifier for Hugging Face Hub
 DEFAULT_CHUNK_SIZE = 1000 # Process 1000 rows at a time
 DEFAULT_BATCH_SIZE = 32   # Translate 32 sentences per batch on GPU/CPU
 
@@ -199,9 +206,9 @@ def process_file_in_chunks(input_path, input_format, output_path, output_format,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Translate English text column in large CSV, JSON, or Parquet files to Thai using chunking.")
-    parser.add_argument("input_path", help="Path to the input file (CSV, JSON Lines, Parquet).")
+    parser.add_argument("input_path", help=f"Path to the input file (CSV, JSON Lines, Parquet). Relative paths are assumed to be inside '{os.path.relpath(DEFAULT_INPUT_DIR, BASE_PATH)}' if not found elsewhere.")
     parser.add_argument("-o", "--output_path", default=None,
-                        help=f"Path to the output file. Defaults to input filename with '_translated_th' suffix in '{DEFAULT_OUTPUT_DIR}'.")
+                        help=f"Path to the output file. Defaults to input filename with '_translated_th' suffix in '{os.path.relpath(DEFAULT_OUTPUT_DIR, BASE_PATH)}'.")
     parser.add_argument("-if", "--input_format", choices=['csv', 'json', 'parquet'], default=None,
                         help="Format of the input file. If not provided, attempts to infer from file extension.")
     parser.add_argument("-of", "--output_format", choices=['csv', 'json', 'parquet'], default='csv',
@@ -219,6 +226,20 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print("--- English to Thai Tabular File Translation Script (Chunked) ---")
+
+    # Resolve input path: Check if absolute, then relative to current dir, then relative to DEFAULT_INPUT_DIR
+    input_path_resolved = args.input_path
+    if not os.path.isabs(input_path_resolved) and not os.path.exists(input_path_resolved):
+        input_path_in_default = os.path.join(DEFAULT_INPUT_DIR, args.input_path)
+        if os.path.exists(input_path_in_default):
+            input_path_resolved = input_path_in_default
+            print(f"Input file found in default translation input directory: {input_path_resolved}")
+        else:
+             # Keep original path, let the processing function handle FileNotFoundError
+             print(f"Warning: Input file not found at '{args.input_path}' or in '{os.path.relpath(DEFAULT_INPUT_DIR, BASE_PATH)}'.")
+
+    # Ensure input directory exists (optional, good practice)
+    os.makedirs(DEFAULT_INPUT_DIR, exist_ok=True)
 
     # Determine input format
     input_format = args.input_format
@@ -238,10 +259,14 @@ if __name__ == "__main__":
     # Determine output path
     output_path = args.output_path
     if not output_path:
-        input_filename = os.path.basename(args.input_path)
+        input_filename = os.path.basename(input_path_resolved) # Use resolved input path basename
         name, _ = os.path.splitext(input_filename)
         output_filename = f"{name}_translated_th.{args.output_format}"
         output_path = os.path.join(DEFAULT_OUTPUT_DIR, output_filename)
+    elif not os.path.isabs(output_path):
+         # If output path is relative, place it in DEFAULT_OUTPUT_DIR
+         output_path = os.path.join(DEFAULT_OUTPUT_DIR, output_path)
+
 
     # Ensure output directory exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -259,9 +284,9 @@ if __name__ == "__main__":
     translator = load_translator(args.batch_size)
 
     if translator:
-        # Process the file in chunks
+        # Process the file in chunks using the resolved input path
         process_file_in_chunks(
-            args.input_path, input_format, output_path, args.output_format,
+            input_path_resolved, input_format, output_path, args.output_format,
             translator, args.text_column, args.output_column,
             args.chunk_size, args.batch_size
         )
