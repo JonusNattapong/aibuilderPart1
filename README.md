@@ -66,6 +66,10 @@
     * Time Series Forecasting (Simulated): สร้างข้อมูลอนุกรมเวลาแบบง่ายๆ
   * กำหนดค่าได้ง่ายผ่าน `config_tabular.py` (จำนวนตัวอย่าง, ขนาดข้อมูล, Model ID สำหรับ T5)
   * บันทึกผลลัพธ์เป็นไฟล์ CSV ใน `DataOutput/`
+* **(ใหม่) Dataset Translation (`DatasetTranslation/`):**
+  * `translate_tabular_en_th.py`: แปลข้อความภาษาอังกฤษในไฟล์ CSV, JSON, หรือ Parquet เป็นภาษาไทย โดยใช้โมเดล Helsinki-NLP
+  * `translate_webdataset_en_th.py`: แปลข้อความภาษาอังกฤษใน WebDataset shards เป็นภาษาไทย และบันทึกผลลัพธ์เป็น JSON Lines
+  * `translate_nlp_dataset_en_th.py`: แปลข้อมูลจาก Python list เฉพาะ (`DatasetNLP/translation_nlp_dataset.py`)
 * **Dataset Utilities & Demonstrations (`Script/Dataset/`):**
   * **Content Moderation:** ตรวจสอบเนื้อหาที่ไม่เหมาะสม (`content_moderation.py`)
   * **Conversation Simulation:** จำลองและวิเคราะห์บทสนทนา (`conversation_simulation.py`)
@@ -183,6 +187,33 @@
 
     *(สคริปต์ใน `Script/Dataset/` ส่วนใหญ่จะมีการสาธิตและโหมดโต้ตอบเมื่อรันโดยตรง)*
 
+5. **(ใหม่) รันสคริปต์แปลภาษา:**
+
+    * **แปลไฟล์ Tabular (CSV, JSON, Parquet):**
+
+      ```bash
+      # ตัวอย่าง: แปลไฟล์ CSV
+      python DatasetTranslation/translate_tabular_en_th.py DataOutput/thai_dataset_translation_en_th.csv -c english_text -o DataOutput/translated_from_csv.csv -of csv
+
+      # ตัวอย่าง: แปลไฟล์ JSON Lines (สมมติมีคอลัมน์ 'eng_sentence')
+      # python DatasetTranslation/translate_tabular_en_th.py input_data.jsonl -c eng_sentence -o DataOutput/translated_from_json.jsonl -of json
+
+      # ตัวอย่าง: แปลไฟล์ Parquet (สมมติมีคอลัมน์ 'text_en')
+      # python DatasetTranslation/translate_tabular_en_th.py input_data.parquet -c text_en -o DataOutput/translated_from_parquet.parquet -of parquet
+      ```
+      *(ใช้ `python DatasetTranslation/translate_tabular_en_th.py --help` เพื่อดูตัวเลือกทั้งหมด)*
+
+    * **แปลไฟล์ WebDataset:**
+
+      ```bash
+      # ตัวอย่าง: แปล WebDataset shards (สมมติข้อความอังกฤษอยู่ในคีย์ '.en.txt')
+      # python DatasetTranslation/translate_webdataset_en_th.py "path/to/input-{000..005}.tar" -o DataOutput/translated_webdataset.jsonl --text_key en.txt --output_key th_translation.txt
+      ```
+      *(ใช้ `python DatasetTranslation/translate_webdataset_en_th.py --help` เพื่อดูตัวเลือกทั้งหมด)*
+
+
+    *(สคริปต์ใน `DatasetTranslation/` จะใช้โมเดล Helsinki-NLP เพื่อแปลข้อความภาษาอังกฤษในชุดข้อมูลที่ระบุให้เป็นภาษาไทย และบันทึกผลลัพธ์ใน `DataOutput/`)*
+
 ## 📁 โครงสร้างโปรเจกต์ (Project Structure)
 
 ```
@@ -216,6 +247,10 @@ aibuilderPart1/
 │   ├── gen_tabular_to_text.py
 │   ├── gen_time_series_forecasting.py
 │   └── ...
+├── DatasetTranslation/   # (ใหม่) สคริปต์แปลชุดข้อมูลเป็นภาษาไทย
+│   ├── translate_tabular_en_th.py   # (เปลี่ยนชื่อ) รองรับ CSV, JSON, Parquet
+│   ├── translate_webdataset_en_th.py # (ใหม่) รองรับ WebDataset
+│   └── translate_nlp_dataset_en_th.py # แปลจาก Python list เฉพาะ
 ├── docs/                 # เอกสารประกอบ
 │   └── USAGE.md
 ├── Model/                # ที่เก็บโมเดลที่ดาวน์โหลด/ฝึก (สำหรับ NLP demos)
