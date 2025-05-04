@@ -1,0 +1,7 @@
+streamlit
+pandas
+deepl
+langdetect
+python-dotenv
+matplotlib
+plotly
