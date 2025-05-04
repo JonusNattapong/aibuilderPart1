@@ -8,11 +8,21 @@ from dotenv import load_dotenv # Added
 # Load environment variables from .env file
 load_dotenv() # Added
 
-from config_apigen import (
+from config_apigen_llm import (
     API_LIBRARY, SIMULATED_OUTPUT_DIR, VERIFIED_DATA_FILENAME,
     SEMANTIC_KEYWORDS_TO_API, DEEPSEEK_API_KEY, DEEPSEEK_API_URL,
     DEEPSEEK_MODEL, NUM_GENERATIONS_TO_ATTEMPT, MAX_RETRIES_LLM,
-    RETRY_DELAY_LLM, GENERATION_TEMPERATURE
+    RETRY_DELAY_LLM, GENERATION_TEMPERATURE, MAX_TOKENS_PER_GENERATION,
+    ENABLE_CACHING, USE_THAI_QUERIES, ENABLE_FORMAT_CHECK,
+    ENABLE_EXECUTION_CHECK, ENABLE_SEMANTIC_CHECK, SAVE_CSV_OUTPUT,
+    SAVE_SIMPLIFIED_FORMAT, GENERATE_VISUALIZATIONS,
+    VISUALIZATIONS_DIR, LOG_DIR, LOG_FILENAME
+)
+from util_apigen import (
+    setup_logger, load_jsonl, save_jsonl, save_csv,
+    convert_to_simplified_format, generate_statistics,
+    visualize_statistics, check_argument_plausibility,
+    check_semantic_similarity
 )
 from api_execution_sim import API_EXECUTORS
 
@@ -145,201 +155,365 @@ def generate_with_llm():
 
 # --- Verification Stages ---
 
+# --- Setup Logger ---
+logger = setup_logger(os.path.join(LOG_DIR, LOG_FILENAME))
+
+# --- Verification Stages ---
 def stage1_format_checker(raw_output):
-    """Checks if the raw LLM output string is valid JSON and conforms to the expected structure."""
+    """
+    Checks if the raw LLM output string is valid JSON and conforms to the expected structure.
+    Includes enhanced validation and plausibility checks.
+    """
+    needs_review = False
     try:
         data = json.loads(raw_output)
     except json.JSONDecodeError:
-        return False, "Invalid JSON", None
+        try:
+            # Try extracting JSON from potential markdown blocks
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', raw_output, re.DOTALL)
+            if json_match:
+                cleaned_output = json_match.group(1)
+            else:
+                # Fallback to finding first { and last }
+                json_start = raw_output.find('{')
+                json_end = raw_output.rfind('}') + 1
+                if json_start != -1 and json_end > json_start:
+                    cleaned_output = raw_output[json_start:json_end]
+                else:
+                    logger.error("Could not find JSON brackets {} in response.")
+                    return False, "Invalid JSON (No brackets found)", None, False
+
+            data = json.loads(cleaned_output)
+        except (json.JSONDecodeError, TypeError):
+            logger.error("Failed to parse JSON even after cleanup attempt.")
+            return False, "Invalid JSON format", None, False
 
     if not isinstance(data, dict):
-        return False, "Output is not a JSON object", None
+        return False, "Output is not a JSON object", None, False
 
     if "query" not in data or "answer" not in data:
-        return False, "Missing 'query' or 'answer' field", None
+        return False, "Missing 'query' or 'answer' field", None, False
 
     if not isinstance(data["query"], str) or not data["query"]:
-        return False, "'query' is not a non-empty string", None
+        return False, "'query' is not a non-empty string", None, False
 
     if not isinstance(data["answer"], list):
-        return False, "'answer' is not a list", None
+        return False, "'answer' is not a list", None, False
 
     validated_calls = []
-    for i, call in enumerate(data["answer"]):
-        if not isinstance(call, dict):
-            return False, f"Call #{i+1} in 'answer' is not an object", None
-        if "name" not in call or "arguments" not in call:
-            return False, f"Call #{i+1} missing 'name' or 'arguments'", None
-        if not isinstance(call["name"], str) or not call["name"]:
-            return False, f"Call #{i+1} 'name' is not a non-empty string", None
-        if not isinstance(call["arguments"], dict):
-            return False, f"Call #{i+1} 'arguments' is not an object", None
+    plausibility_warnings = []
 
-        # Check if API exists in library
+    for i, call in enumerate(data.get("answer", [])):
+        if not isinstance(call, dict):
+            return False, f"Call #{i+1} is not an object", None, False
+
+        if "name" not in call or "arguments" not in call:
+            return False, f"Call #{i+1} missing 'name' or 'arguments'", None, False
+
         api_name = call["name"]
         if api_name not in API_LIBRARY:
-            return False, f"Call #{i+1} '{api_name}' is not a recognized API", data
+            return False, f"Call #{i+1} '{api_name}' is not a recognized API", None, False
 
-        # Check for required arguments
+        # Check required arguments and types
         api_def = API_LIBRARY[api_name]
-        for param, details in api_def["parameters"].items():
-            if details.get("required", False) and param not in call["arguments"]:
-                return False, f"Call #{i+1} '{api_name}' missing required argument '{param}'", data
+        for param, details in api_def.get("parameters", {}).items():
+            if details.get("required", False) and param not in call.get("arguments", {}):
+                return False, f"Call #{i+1} '{api_name}' missing required argument '{param}'", None, False
 
-        # (Optional) Simple type check could be added here based on API_LIBRARY defs
-        validated_calls.append(call) # Keep original call structure if valid so far
+            if param in call.get("arguments", {}):
+                value = call["arguments"][param]
+                expected_type = details.get("type")
+                if expected_type:
+                    # Type validation with automatic conversion where possible
+                    try:
+                        if expected_type == "string" and not isinstance(value, str):
+                            call["arguments"][param] = str(value)
+                            needs_review = True
+                        elif expected_type == "number":
+                            if isinstance(value, str):
+                                call["arguments"][param] = float(value)
+                                needs_review = True
+                        elif expected_type == "integer":
+                            if isinstance(value, (str, float)):
+                                num = float(value)
+                                if num.is_integer():
+                                    call["arguments"][param] = int(num)
+                                    needs_review = True
+                                else:
+                                    return False, f"Call #{i+1} '{api_name}' argument '{param}' must be an integer", None, False
+                        elif expected_type == "boolean":
+                            if isinstance(value, str):
+                                if value.lower() == "true":
+                                    call["arguments"][param] = True
+                                    needs_review = True
+                                elif value.lower() == "false":
+                                    call["arguments"][param] = False
+                                    needs_review = True
 
-    # If all checks pass for all calls
-    # Return the validated structured data (original query + list of validated calls)
+                    except (ValueError, TypeError):
+                        return False, f"Call #{i+1} '{api_name}' argument '{param}' has invalid type", None, False
+
+        # Plausibility checks
+        if ENABLE_PLAUSIBILITY_CHECK:
+            is_plausible, issues = check_argument_plausibility(api_name, call["arguments"], API_LIBRARY)
+            if issues:
+                plausibility_warnings.extend([f"Call #{i+1} '{api_name}': {issue}" for issue in issues])
+                if not is_plausible:
+                    return False, f"Argument Plausibility Failed: {issues[0]}", None, True
+                needs_review = True
+
+        validated_calls.append(call)
+
     validated_data = {"query": data["query"], "answer": validated_calls}
-    return True, "Format OK", validated_data
+    reason = "Format OK"
+    if plausibility_warnings:
+        reason += f" (Warnings: {'; '.join(plausibility_warnings)})"
+        logger.warning(f"Plausibility warnings: {'; '.join(plausibility_warnings)}")
 
+    return True, reason, validated_data, needs_review
 
 def stage2_execution_checker(validated_data):
     """Attempts to 'execute' the validated function calls using simulators."""
-    query = validated_data["query"]
-    calls = validated_data["answer"]
+    query = validated_data.get("query", "")
+    calls = validated_data.get("answer", [])
     execution_results = []
     all_calls_succeeded = True
+    needs_review = False
 
     for i, call in enumerate(calls):
-        api_name = call["name"]
-        arguments = call["arguments"]
-        executor = API_EXECUTORS.get(api_name)
+        api_name = call.get("name")
+        arguments = call.get("arguments", {})
+        result = {"call": call}  # Store the original call
 
-        if not executor:
-            # Should not happen if format checker worked, but double-check
-            result = (False, {"error": f"No executor found for API '{api_name}'"})
-            all_calls_succeeded = False
-        else:
+        if api_name in API_EXECUTORS:
             try:
-                # Execute the corresponding simulation function
-                print(f"  Executing call {i+1}: {api_name}({arguments})")
-                success, exec_output = executor(**arguments)
-                result = (success, exec_output)
+                logger.info(f"Executing {api_name} with arguments: {arguments}")
+                success, output = API_EXECUTORS[api_name](**arguments)
+                result["execution_success"] = success
+                result["execution_output"] = output
                 if not success:
                     all_calls_succeeded = False
-            except TypeError as e: # Handles case where arguments don't match function signature
-                 result = (False, {"error": f"Execution error (TypeError) for {api_name}: {e}"})
-                 all_calls_succeeded = False
+                    needs_review = True
             except Exception as e:
-                 result = (False, {"error": f"Unexpected execution error for {api_name}: {e}"})
-                 all_calls_succeeded = False
+                logger.error(f"Error executing {api_name}: {str(e)}")
+                result["execution_success"] = False
+                result["execution_output"] = {"error": str(e)}
+                all_calls_succeeded = False
+                needs_review = True
+        else:
+            logger.error(f"No executor found for API '{api_name}'")
+            result["execution_success"] = False
+            result["execution_output"] = {"error": f"No executor found for API '{api_name}'"}
+            all_calls_succeeded = False
+            needs_review = True
 
-        execution_results.append({
-            "call": call,
-            "execution_success": result[0],
-            "execution_output": result[1]
-        })
-
+        execution_results.append(result)
 
     passing_data = {
         "query": query,
-        "execution_results": execution_results # Contains original call + success status + output/error
+        "execution_results": execution_results,
+        "needs_review": needs_review
     }
-    return all_calls_succeeded, "Execution attempted", passing_data
-
+    return all_calls_succeeded, "Execution completed", passing_data
 
 def stage3_semantic_checker(execution_data):
-    """Performs a *very basic* semantic check."""
-    query = execution_data["query"].lower()
-    results = execution_data["execution_results"]
+    """
+    Performs semantic checks with enhanced validation including semantic similarity
+    and expanded keyword matching.
+    """
+    query = execution_data.get("query", "").lower()
+    results = execution_data.get("execution_results", [])
+    needs_review = execution_data.get("needs_review", False)
 
-    # Basic Check: If query contains keywords related to an API,
-    # at least one *successful* execution should involve that API.
-    # This is a huge simplification. Real semantic checks are complex.
-
+    # Basic keyword matching
     expected_apis = set()
     for keyword, api_name in SEMANTIC_KEYWORDS_TO_API.items():
-        if keyword in query:
+        if keyword.lower() in query:
             expected_apis.add(api_name)
 
-    if not expected_apis: # If no keywords found, maybe pass? Or fail? Let's pass for now.
-        return True, "Passed (No specific keywords detected)", execution_data
-
+    # Get successfully executed APIs
     executed_successfully = set()
     for result in results:
-        if result["execution_success"]:
+        if result.get("execution_success"):
             executed_successfully.add(result["call"]["name"])
 
-    # Check if at least one expected API was successfully executed
-    if expected_apis.intersection(executed_successfully):
-        return True, "Passed (Basic keyword match)", execution_data
-    else:
-        fail_reason = f"Failed: Query keywords suggest {expected_apis}, " \
-                      f"but successful executions were {executed_successfully or 'None'}"
-        return False, fail_reason, execution_data
+    # Enhanced semantic check with embedding similarity
+    if ENABLE_SEMANTIC_SIMILARITY_CHECK:
+        logger.info("Performing semantic similarity check")
+        for result in results:
+            api_name = result["call"]["name"]
+            api_desc = API_LIBRARY[api_name]["description"]
+            similarity = check_semantic_similarity(query, api_desc, SEMANTIC_EMBEDDING_MODEL)
+            if similarity < 0.3:  # Threshold can be adjusted
+                logger.warning(f"Low semantic similarity ({similarity:.2f}) between query and {api_name}")
+                needs_review = True
 
-# --- Main Pipeline Orchestration ---
+    # Decision logic
+    semantic_ok = True
+    reason = "Semantic check completed"
 
-def run_pipeline():
-    """Runs the full APIGen pipeline with LLM generation."""
-    # Replace simulation call with LLM call
-    raw_llm_outputs = generate_with_llm() # Changed function call
+    if expected_apis:
+        if not expected_apis.intersection(executed_successfully):
+            semantic_ok = False
+            reason = f"Query suggests {expected_apis} but executed {executed_successfully}"
+            needs_review = True
+    elif not executed_successfully:
+        # If no specific APIs were expected but none were executed successfully
+        semantic_ok = False
+        reason = "No successful API executions"
+        needs_review = True
+
+    execution_data["needs_review"] = needs_review
+    return semantic_ok, reason, execution_data
+
+# --- Main Pipeline ---
+
+from typing import Optional, Callable
+from pipeline_utils import PipelineProgress
+
+def run_pipeline(
+    progress_callback: Optional[Callable] = None,
+    stage_callback: Optional[Callable] = None
+):
+    """
+    Runs the full APIGen pipeline with LLM generation.
+    
+    Args:
+        progress_callback: Optional callback function to report progress (0.0 to 1.0)
+        stage_callback: Optional callback function to report current stage
+    """
+    # Initialize progress tracking
+    progress = PipelineProgress(
+        NUM_GENERATIONS_TO_ATTEMPT,
+        progress_callback=progress_callback,
+        stage_callback=stage_callback
+    )
+    logger.info("Starting APIGen pipeline...")
+    
+    # Generate data using LLM
+    progress.update_stage('generation')
+    raw_llm_outputs = generate_with_llm()
+    progress.update_stage_progress(1.0)
 
     if not raw_llm_outputs:
-        print("\nNo outputs generated by LLM. Exiting.")
+        logger.error("No outputs generated by LLM. Exiting.")
         return
 
     verified_data_all_stages = []
-    stats = {"total_attempted": len(raw_llm_outputs), "fail_format": 0, "fail_execution": 0, "fail_semantic": 0, "pass": 0}
+    stats = {
+        "total_attempted": len(raw_llm_outputs),
+        "fail_format": 0,
+        "fail_execution": 0,
+        "fail_semantic": 0,
+        "pass": 0,
+        "needs_review": 0
+    }
 
-    # Process the raw outputs from the LLM
+    # Process each generated output
     for i, raw_output in enumerate(raw_llm_outputs):
-        print(f"\n--- Processing Generated Output #{i+1} ---")
-        # stats["total"] += 1 # Renamed stat
+        logger.info(f"\n--- Processing Generated Output #{i+1}/{len(raw_llm_outputs)} ---")
         start_time = time.time()
 
-        # Stage 1
-        format_ok, reason1, validated_data = stage1_format_checker(raw_output)
-        print(f"Stage 1 (Format Check): {'PASS' if format_ok else 'FAIL'} - {reason1}")
-        if not format_ok:
-            stats["fail_format"] += 1
-            # Optionally log the raw_output that failed format check
-            # print(f"      Raw Output: {raw_output}")
-            continue
+        # Stage 1: Format Check
+        progress.update_stage('format')
+        if ENABLE_FORMAT_CHECK:
+            format_ok, reason1, validated_data, needs_review = stage1_format_checker(raw_output)
+            progress.update_stage_progress((i + 1) / len(raw_llm_outputs))
+            logger.info(f"Stage 1 (Format Check): {'PASS' if format_ok else 'FAIL'} - {reason1}")
+            if not format_ok:
+                stats["fail_format"] += 1
+                if needs_review:
+                    stats["needs_review"] += 1
+                continue
+        else:
+            try:
+                validated_data = json.loads(raw_output)
+                needs_review = False
+            except json.JSONDecodeError:
+                logger.error("Basic JSON parsing failed when format check disabled")
+                stats["fail_format"] += 1
+                continue
 
-        # Stage 2
-        # ... (rest of the pipeline logic remains the same) ...
-        exec_ok, reason2, execution_data = stage2_execution_checker(validated_data)
-        print(f"Stage 2 (Execution Check): {'ALL PASS' if exec_ok else 'SOME FAIL'} - {reason2}")
-        if not exec_ok:
-            stats["fail_execution"] += 1
-            # print(f"      Details: {execution_data['execution_results']}") # To see errors
-            continue # Skip Semantic if execution had errors
+        # Stage 2: Execution Check
+        progress.update_stage('execution')
+        if ENABLE_EXECUTION_CHECK:
+            exec_ok, reason2, execution_data = stage2_execution_checker(validated_data)
+            progress.update_stage_progress((i + 1) / len(raw_llm_outputs))
+            logger.info(f"Stage 2 (Execution Check): {'PASS' if exec_ok else 'FAIL'} - {reason2}")
+            if not exec_ok:
+                stats["fail_execution"] += 1
+                if execution_data.get("needs_review"):
+                    stats["needs_review"] += 1
+                continue
+        else:
+            execution_data = validated_data
 
-        # Stage 3
-        semantic_ok, reason3, final_data = stage3_semantic_checker(execution_data)
-        print(f"Stage 3 (Semantic Check): {'PASS' if semantic_ok else 'FAIL'} - {reason3}")
-        if not semantic_ok:
-            stats["fail_semantic"] += 1
-            continue
+        # Stage 3: Semantic Check
+        progress.update_stage('semantic')
+        if ENABLE_SEMANTIC_CHECK:
+            semantic_ok, reason3, final_data = stage3_semantic_checker(execution_data)
+            progress.update_stage_progress((i + 1) / len(raw_llm_outputs))
+            logger.info(f"Stage 3 (Semantic Check): {'PASS' if semantic_ok else 'FAIL'} - {reason3}")
+            if not semantic_ok:
+                stats["fail_semantic"] += 1
+                if final_data.get("needs_review"):
+                    stats["needs_review"] += 1
+                continue
+        else:
+            final_data = execution_data
 
-        # If all stages passed
+        # Track needs_review flag
+        if final_data.get("needs_review", False) or needs_review:
+            stats["needs_review"] += 1
+            final_data["needs_review"] = True
+
+        # If all enabled stages passed
         stats["pass"] += 1
         verified_data_all_stages.append(final_data)
+        progress.increment_sample()
         duration = time.time() - start_time
-        print(f"--- PASSED ALL STAGES ({duration:.2f}s) ---")
+        logger.info(f"--- PASSED ALL STAGES ({duration:.2f}s) ---")
 
-    print("\n--- Pipeline Finished ---")
-    print("Verification Statistics:")
+    logger.info("\n=== Pipeline Finished ===")
+    logger.info("Verification Statistics:")
     for key, value in stats.items():
-        print(f"- {key.replace('_', ' ').title()}: {value}")
+        logger.info(f"- {key.replace('_', ' ').title()}: {value}")
 
-    # Save verified data
+    # Save results if any data passed verification
     if verified_data_all_stages:
-        # Use BASE_PATH from config for correct output path construction
+        # Save verified data in JSONL format
         output_path = os.path.join(SIMULATED_OUTPUT_DIR, VERIFIED_DATA_FILENAME)
-        os.makedirs(os.path.dirname(output_path), exist_ok=True) # Use dirname for makedirs
-        try:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                for item in verified_data_all_stages:
-                    f.write(json.dumps(item, ensure_ascii=False) + '\n')
-            print(f"\nSaved {stats['pass']} verified data points to: {output_path}")
-        except Exception as e:
-            print(f"\nError saving verified data: {e}")
+        if save_jsonl(verified_data_all_stages, output_path):
+            logger.info(f"Saved {stats['pass']} verified examples to: {output_path}")
+        
+        # Save CSV format if enabled
+        if SAVE_CSV_OUTPUT:
+            csv_path = os.path.join(SIMULATED_OUTPUT_DIR, VERIFIED_DATA_CSV_FILENAME)
+            if save_csv(verified_data_all_stages, csv_path):
+                logger.info(f"Saved CSV version to: {csv_path}")
+
+        # Save simplified format if enabled
+        if SAVE_SIMPLIFIED_FORMAT:
+            simplified_data = convert_to_simplified_format(verified_data_all_stages)
+            simplified_path = os.path.join(SIMULATED_OUTPUT_DIR, SIMPLIFIED_DATA_FILENAME)
+            if save_jsonl(simplified_data, simplified_path):
+                logger.info(f"Saved simplified format to: {simplified_path}")
+
+        # Generate statistics and visualizations
+        stats_data = generate_statistics(verified_data_all_stages)
+        if stats_data:
+            stats_path = os.path.join(SIMULATED_OUTPUT_DIR, "api_call_statistics.json")
+            try:
+                with open(stats_path, 'w', encoding='utf-8') as f:
+                    json.dump(stats_data, f, indent=2, ensure_ascii=False)
+                logger.info(f"Saved detailed statistics to: {stats_path}")
+            
+                if GENERATE_VISUALIZATIONS:
+                    visualize_statistics(stats_data, VISUALIZATIONS_DIR)
+            except Exception as e:
+                logger.error(f"Error saving statistics: {e}")
     else:
-        print("\nNo data passed all verification stages.")
+        logger.warning("No data passed all verification stages.")
 
 if __name__ == "__main__":
     run_pipeline()
