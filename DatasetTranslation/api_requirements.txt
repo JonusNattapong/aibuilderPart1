@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+deepl
+langdetect
+python-dotenv
+pandas
+aiofiles
+asyncio
+pydantic
+pytest
+httpx
+requests
