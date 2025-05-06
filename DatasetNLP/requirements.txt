@@ -1,0 +1,22 @@
+streamlit
+torch
+transformers
+pandas
+numpy
+scikit-learn
+nltk
+spacy
+tqdm
+python-dotenv
+sentencepiece
+sacremoses
+protobuf
+plotly
+accelerate
+bitsandbytes
+datasets
+tokenizers
+nltk
+spacy
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.5.0/en_core_web_sm-3.5.0.tar.gz
+th_core_news_lg @ https://github.com/explosion/spacy-models/releases/download/th_core_news_lg-3.5.0/th_core_news_lg-3.5.0.tar.gz

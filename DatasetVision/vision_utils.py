@@ -1,156 +1,280 @@
+"""
+Utility functions for vision dataset generation.
+"""
 import os
-import time
-import requests
 import json
-from huggingface_hub import InferenceClient, hf_hub_download
+import torch
+import numpy as np
 from PIL import Image
-import io
-from config_vision import HF_API_TOKEN, MAX_RETRIES, RETRY_DELAY, GENERATED_MEDIA_DIR
-from dotenv import load_dotenv # Added
+import pandas as pd
+from pathlib import Path
+from torchvision import transforms
+from transformers import AutoModelForImageClassification, AutoFeatureExtractor
+from typing import List, Dict, Any
 
-# Load environment variables from .env file
-load_dotenv() # Added
+class VisionTaskManager:
+    """Manages vision tasks and their processing."""
+    
+    def __init__(self, task_name: str):
+        self.task_name = task_name
+        self.transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                              std=[0.229, 0.224, 0.225])
+        ])
 
-# Initialize Inference Client (if token is provided)
-client = None
-if HF_API_TOKEN:
-    print("Initializing Hugging Face Inference Client...")
-    client = InferenceClient(token=HF_API_TOKEN)
-else:
-    print("Warning: HF_TOKEN environment variable not set. Inference API calls will likely fail.")
-    print("For API usage, set the HF_TOKEN environment variable with your Hugging Face API token.")
-
-def invoke_inference_api(model_id, data=None, json_data=None, task=None):
-    """Invokes the Hugging Face Inference API with retries."""
-    if not client:
-        print(f"Skipping API call for {model_id} as client is not initialized.")
-        return None
-
-    for attempt in range(MAX_RETRIES):
-        try:
-            print(f"Attempt {attempt + 1}/{MAX_RETRIES}: Calling model {model_id} via Inference API...")
-            if task == "text-to-image":
-                # Text-to-image often returns raw image bytes
-                response = client.text_to_image(prompt=json_data['inputs'], model=model_id)
-                return response # Should be PIL Image or bytes
-            elif task == "image-to-text":
-                 # Assumes data is image bytes
-                response = client.image_to_text(image=data, model=model_id)
-                return response # Should be string caption
-            elif task == "image-classification":
-                 # Assumes data is image bytes
-                response = client.image_classification(image=data, model=model_id)
-                return response # Should be list of dicts (label, score)
-            elif task == "object-detection":
-                 # Assumes data is image bytes
-                response = client.object_detection(image=data, model=model_id)
-                return response # Should be list of dicts (box, label, score)
-            elif task == "depth-estimation":
-                 # Assumes data is image bytes
-                response = client.depth_estimation(image=data, model=model_id)
-                return response # Should be PIL Image (depth map)
-            elif task == "image-segmentation":
-                 # Assumes data is image bytes
-                response = client.image_segmentation(image=data, model=model_id)
-                return response # Should be list of dicts (mask, label, score)
-            elif task == "zero-shot-image-classification":
-                 # Assumes data is image bytes, json_data contains parameters
-                response = client.zero_shot_image_classification(
-                    image=data,
-                    candidate_labels=json_data['parameters']['candidate_labels'],
-                    model=model_id
-                )
-                return response # Should be list of dicts (label, score)
-            else:
-                # Generic POST request for other tasks (might need adjustments)
-                headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
-                api_url = f"https://api-inference.huggingface.co/models/{model_id}"
-                payload = json_data if json_data else {}
-                files = {'file': ('image.jpg', data, 'image/jpeg')} if data else None
-
-                response = requests.post(api_url, headers=headers, json=payload, files=files)
-                response.raise_for_status() # Raise an exception for bad status codes
-
-                # Try to parse JSON, otherwise return raw content
-                try:
-                    return response.json()
-                except json.JSONDecodeError:
-                    return response.content # Could be image bytes or other format
-
-        except requests.exceptions.RequestException as e:
-            print(f"Error during API call (Attempt {attempt + 1}/{MAX_RETRIES}): {e}")
-            if isinstance(e, requests.exceptions.HTTPError):
-                print(f"Response status code: {e.response.status_code}")
-                print(f"Response content: {e.response.text}")
-                # Specific handling for common errors
-                if e.response.status_code == 429: # Rate limited
-                    print("Rate limited. Waiting longer...")
-                    time.sleep(RETRY_DELAY * 5) # Wait longer for rate limits
-                elif e.response.status_code >= 500: # Server error
-                    print("Server error. Retrying...")
-                    time.sleep(RETRY_DELAY)
-                elif e.response.status_code == 400: # Bad request (often model loading)
-                    print("Bad request. Model might be loading or invalid input. Waiting...")
-                    time.sleep(RETRY_DELAY * 2)
-                else:
-                    # Don't retry for other client errors (e.g., 401 Unauthorized, 404 Not Found)
-                    print("Non-retryable client error. Aborting.")
-                    return None
-            else: # Network errors
-                print("Network error. Retrying...")
-                time.sleep(RETRY_DELAY)
-        except Exception as e:
-            # Catch other potential errors from client.<task> methods
-            print(f"Unexpected error during API call (Attempt {attempt + 1}/{MAX_RETRIES}): {e}")
-            time.sleep(RETRY_DELAY)
-
-    print(f"API call failed after {MAX_RETRIES} attempts for model {model_id}.")
-    return None
-
-def save_image(image_data, task_name, filename_prefix, extension=".png"):
-    """Saves image data (PIL Image or bytes) to a file."""
-    try:
-        task_dir = os.path.join(GENERATED_MEDIA_DIR, task_name)
-        os.makedirs(task_dir, exist_ok=True)
-        filepath = os.path.join(task_dir, f"{filename_prefix}{extension}")
-
-        if isinstance(image_data, Image.Image):
-            image_data.save(filepath)
-        elif isinstance(image_data, bytes):
-            with open(filepath, "wb") as f:
-                f.write(image_data)
+    def process_batch(self, 
+                     model: torch.nn.Module,
+                     images: List[Image.Image],
+                     config: Dict[str, Any]) -> List[Dict]:
+        """Process a batch of images for the specified task."""
+        
+        if self.task_name == "image_classification":
+            return self._process_classification(model, images, config)
+        elif self.task_name == "object_detection":
+            return self._process_detection(model, images, config)
+        elif self.task_name == "image_segmentation":
+            return self._process_segmentation(model, images, config)
+        elif self.task_name == "depth_estimation":
+            return self._process_depth(model, images, config)
+        elif self.task_name == "keypoint_detection":
+            return self._process_keypoints(model, images, config)
         else:
-            print(f"Warning: Unsupported image data type: {type(image_data)}. Cannot save.")
-            return None
+            raise ValueError(f"Unsupported task: {self.task_name}")
 
-        print(f"Saved image to {filepath}")
-        # Return relative path for CSV
-        return os.path.join('generated_media', task_name, f"{filename_prefix}{extension}").replace('\\', '/')
-    except Exception as e:
-        print(f"Error saving image {filename_prefix}: {e}")
-        return None
+    def _process_classification(self, model, images, config):
+        """Process images for classification."""
+        results = []
+        for image in images:
+            # Prepare image
+            img_tensor = self.transform(image).unsqueeze(0)
+            
+            # Get prediction
+            with torch.no_grad():
+                outputs = model(img_tensor)
+                probs = torch.softmax(outputs.logits, dim=1)
+                
+                # Get top K predictions
+                top_k = min(config.get('top_k', 5), probs.shape[1])
+                values, indices = torch.topk(probs, top_k)
+                
+                predictions = [
+                    {
+                        "label": model.config.id2label[idx.item()],
+                        "confidence": val.item()
+                    }
+                    for val, idx in zip(values[0], indices[0])
+                ]
+                
+            results.append({
+                "task": "classification",
+                "predictions": predictions
+            })
+        
+        return results
 
-def load_image_bytes(image_path):
-    """Loads an image from a path and returns its bytes. Returns None if path is invalid or placeholder."""
-    # Basic check for placeholder paths
-    if "placeholder_" in image_path or not os.path.exists(image_path):
-        print(f"Warning: Input image path '{image_path}' is a placeholder or does not exist. Skipping load.")
-        return None
+    def _process_detection(self, model, images, config):
+        """Process images for object detection."""
+        results = []
+        for image in images:
+            # Prepare image
+            img_tensor = self.transform(image).unsqueeze(0)
+            
+            # Get predictions
+            with torch.no_grad():
+                outputs = model(img_tensor)
+                
+                boxes = outputs.pred_boxes[0].cpu().numpy()
+                scores = outputs.scores[0].cpu().numpy()
+                labels = outputs.labels[0].cpu().numpy()
+                
+                # Filter by confidence threshold
+                conf_threshold = config.get('confidence_threshold', 0.5)
+                mask = scores > conf_threshold
+                
+                detections = [
+                    {
+                        "bbox": box.tolist(),
+                        "label": model.config.id2label[label],
+                        "confidence": score
+                    }
+                    for box, label, score in zip(boxes[mask], labels[mask], scores[mask])
+                ]
+                
+            results.append({
+                "task": "detection",
+                "detections": detections
+            })
+        
+        return results
+
+    def _process_segmentation(self, model, images, config):
+        """Process images for segmentation."""
+        results = []
+        for image in images:
+            # Prepare image
+            img_tensor = self.transform(image).unsqueeze(0)
+            
+            # Get predictions
+            with torch.no_grad():
+                outputs = model(img_tensor)
+                masks = outputs.pred_masks.squeeze().cpu().numpy()
+                
+                # Convert masks to RLE format
+                segmentation = []
+                for i, mask in enumerate(masks):
+                    rle = self._mask_to_rle(mask > config.get('mask_threshold', 0.5))
+                    segmentation.append({
+                        "label": model.config.id2label[i],
+                        "rle": rle
+                    })
+                
+            results.append({
+                "task": "segmentation",
+                "segmentation": segmentation
+            })
+        
+        return results
+
+    def _process_depth(self, model, images, config):
+        """Process images for depth estimation."""
+        results = []
+        for image in images:
+            # Prepare image
+            img_tensor = self.transform(image).unsqueeze(0)
+            
+            # Get predictions
+            with torch.no_grad():
+                outputs = model(img_tensor)
+                depth_map = outputs.pred_depth.squeeze().cpu().numpy()
+                
+                # Convert depth map to more efficient format
+                depth_data = {
+                    "min_depth": float(depth_map.min()),
+                    "max_depth": float(depth_map.max()),
+                    "mean_depth": float(depth_map.mean()),
+                    "depth_map": self._compress_depth_map(depth_map)
+                }
+                
+            results.append({
+                "task": "depth_estimation",
+                "depth": depth_data
+            })
+        
+        return results
+
+    def _process_keypoints(self, model, images, config):
+        """Process images for keypoint detection."""
+        results = []
+        for image in images:
+            # Prepare image
+            img_tensor = self.transform(image).unsqueeze(0)
+            
+            # Get predictions
+            with torch.no_grad():
+                outputs = model(img_tensor)
+                keypoints = outputs.pred_keypoints[0].cpu().numpy()
+                scores = outputs.pred_keypoint_scores[0].cpu().numpy()
+                
+                # Filter by confidence threshold
+                conf_threshold = config.get('keypoint_threshold', 0.3)
+                mask = scores > conf_threshold
+                
+                points = [
+                    {
+                        "coordinate": point.tolist(),
+                        "confidence": float(score),
+                        "label": f"keypoint_{i}"
+                    }
+                    for i, (point, score) in enumerate(zip(keypoints[mask], scores[mask]))
+                ]
+                
+            results.append({
+                "task": "keypoint_detection",
+                "keypoints": points
+            })
+        
+        return results
+
+    def _mask_to_rle(self, mask):
+        """Convert binary mask to run-length encoding."""
+        pixels = mask.flatten()
+        runs = []
+        run = 0
+        prev = False
+        for pixel in pixels:
+            if pixel != prev:
+                runs.append(run)
+                run = 1
+                prev = pixel
+            else:
+                run += 1
+        runs.append(run)
+        return runs
+
+    def _compress_depth_map(self, depth_map, compression_factor=4):
+        """Compress depth map by downsampling."""
+        h, w = depth_map.shape
+        new_h, new_w = h // compression_factor, w // compression_factor
+        compressed = np.mean(depth_map.reshape(new_h, compression_factor, 
+                                             new_w, compression_factor), axis=(1,3))
+        return compressed.tolist()
+
+def load_model(task: str, model_name: str) -> torch.nn.Module:
+    """Load the specified model for a task."""
     try:
-        with Image.open(image_path) as img:
-            img_byte_arr = io.BytesIO()
-            img_format = img.format if img.format else 'JPEG' # Default to JPEG if format is None
-            img.save(img_byte_arr, format=img_format)
-            img_byte_arr = img_byte_arr.getvalue()
-            return img_byte_arr
+        model = AutoModelForImageClassification.from_pretrained(model_name)
+        model.eval()
+        return model
     except Exception as e:
-        print(f"Error loading image {image_path}: {e}")
-        return None
+        raise RuntimeError(f"Error loading model {model_name} for task {task}: {str(e)}")
 
-# --- Local Model Utilities (Placeholder) ---
-# Add functions here later to load and run local models using transformers/diffusers
-# Example structure:
-# def load_local_model(model_id, task):
-#     pass
-# def run_local_inference(model, tokenizer_or_processor, input_data, task):
-#     pass
+def process_image(image: Image.Image, task: str) -> Image.Image:
+    """Pre-process image according to task requirements."""
+    # Convert to RGB if needed
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    
+    # Resize if needed
+    if task == "depth_estimation":
+        image = image.resize((384, 384))  # Standard size for depth estimation
+    else:
+        image = image.resize((224, 224))  # Standard size for other tasks
+    
+    return image
+
+def save_dataset(data: List[Dict],
+                filename: str,
+                format_type: str,
+                output_dir: str) -> str:
+    """Save dataset in specified format."""
+    os.makedirs(output_dir, exist_ok=True)
+    
+    base_filename = os.path.splitext(filename)[0]
+    output_path = os.path.join(output_dir, f"{base_filename}.{format_type.lower()}")
+    
+    try:
+        if format_type.upper() == "CSV":
+            df = pd.DataFrame(data)
+            df.to_csv(output_path, index=False)
+        elif format_type.upper() == "JSON":
+            with open(output_path, 'w') as f:
+                json.dump(data, f, indent=2)
+        elif format_type.upper() == "JSONL":
+            with open(output_path, 'w') as f:
+                for item in data:
+                    f.write(json.dumps(item) + '\n')
+        else:
+            raise ValueError(f"Unsupported format: {format_type}")
+        
+        return output_path
+    except Exception as e:
+        raise RuntimeError(f"Error saving dataset: {str(e)}")
+
+def setup_device() -> torch.device:
+    """Set up compute device (CPU/GPU)."""
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    else:
+        return torch.device('cpu')

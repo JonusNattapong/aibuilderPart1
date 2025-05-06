@@ -1,0 +1,16 @@
+streamlit
+torch
+torchvision
+transformers
+pillow
+numpy
+pandas
+matplotlib
+plotly
+scikit-image
+opencv-python
+timm
+albumentations
+huggingface-hub
+tqdm
+python-dotenv
