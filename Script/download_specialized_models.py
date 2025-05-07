@@ -99,27 +99,117 @@ MODELS = {
 def create_model_dir():
     """Create models directory if it doesn't exist"""
     os.makedirs(BASE_MODEL_DIR, exist_ok=True)
-            return {'processor': processor, 'model': model}
+    for category in MODELS.keys():
+        os.makedirs(os.path.join(BASE_MODEL_DIR, category), exist_ok=True)
+
+def get_model_processor(category, model_path, cache_dir):
+    """Get appropriate processor based on model category"""
+    if category in ['text', 'code', 'translation']:
+        return AutoTokenizer.from_pretrained(model_path, cache_dir=cache_dir)
+    elif category in ['vision', 'creative']:
+        return AutoFeatureExtractor.from_pretrained(model_path, cache_dir=cache_dir)
+    elif category in ['audio', 'speech', 'multimodal']:
+        return AutoProcessor.from_pretrained(model_path, cache_dir=cache_dir)
+    else:
+        return None
+
+def download_model(model_name, model_path, category):
+    """Download a specific model"""
+    try:
+        logger.info(f"Downloading {model_name} model...")
+        cache_dir = os.path.join(BASE_MODEL_DIR, category, model_name)
+        
+        # Download model files
+        snapshot_download(
+            repo_id=model_path,
+            cache_dir=cache_dir,
+            local_dir=cache_dir
+        )
+        
+        # Load and save model components
+        try:
+            processor = get_model_processor(category, model_path, cache_dir)
+            model = AutoModel.from_pretrained(model_path, cache_dir=cache_dir)
             
-        elif category == 'vision':
-            feature_extractor = AutoFeatureExtractor.from_pretrained(model_path)
-            model = AutoModel.from_pretrained(model_path)
-            return {'feature_extractor': feature_extractor, 'model': model}
+            if processor:
+                processor.save_pretrained(cache_dir)
+            model.save_pretrained(cache_dir)
             
-        elif category == 'multimodal':
-            processor = AutoProcessor.from_pretrained(model_path)
+        except Exception as e:
+            logger.warning(f"Could not load model components: {str(e)}")
+            logger.info("Continuing with raw file download only")
+        
+        logger.info(f"Successfully downloaded {model_name} model to {cache_dir}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error downloading {model_name} model: {str(e)}")
+        return False
+
+def load_model(category, model_name):
+    """Load a specific model from the local directory"""
+    model_path = os.path.join(BASE_MODEL_DIR, category, model_name)
+    
+    if not os.path.exists(model_path):
+        logger.error(f"Model not found at {model_path}")
+        return None
+    
+    try:
+        components = {}
+        
+        # Load processor/tokenizer if available
+        try:
+            processor = get_model_processor(category, model_path, model_path)
+            if processor:
+                components['processor'] = processor
+        except Exception as e:
+            logger.warning(f"Could not load processor: {str(e)}")
+        
+        # Load model
+        try:
             model = AutoModel.from_pretrained(model_path)
-            tokenizer = AutoTokenizer.from_pretrained(model_path)
-            return {'processor': processor, 'model': model, 'tokenizer': tokenizer}
+            components['model'] = model
+        except Exception as e:
+            logger.warning(f"Could not load model: {str(e)}")
+        
+        return components if components else None
             
     except Exception as e:
         logger.error(f"Error loading model {model_name}: {str(e)}")
         return None
 
+def download_category_models(category):
+    """Download all models for a specific category"""
+    if category not in MODELS:
+        logger.error(f"Unknown category: {category}")
+        return False
+    
+    success = True
+    for model_name, model_path in MODELS[category].items():
+        if not download_model(model_name, model_path, category):
+            success = False
+    return success
+
+def download_all_models():
+    """Download all models for all categories"""
+    create_model_dir()
+    
+    total_models = sum(len(models) for models in MODELS.values())
+    successful = 0
+    
+    for category in MODELS.keys():
+        logger.info(f"\nDownloading {category} models...")
+        for model_name, model_path in MODELS[category].items():
+            if download_model(model_name, model_path, category):
+                successful += 1
+    
+    logger.info(f"\nDownload complete: {successful}/{total_models} models downloaded successfully")
+    return successful == total_models
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Download AI models for different data types')
-    parser.add_argument('--category', choices=['audio', 'vision', 'multimodal', 'all'],
+    parser.add_argument('--category', choices=list(MODELS.keys()) + ['all'],
                       help='Category of models to download')
     parser.add_argument('--load', action='store_true',
                       help='Load a model after downloading')
@@ -139,7 +229,7 @@ if __name__ == "__main__":
         if category:
             model = load_model(category, args.model_name)
             if model:
-                logger.info(f"Successfully loaded {args.model_name} from {get_model_path(category, args.model_name)}")
+                logger.info(f"Successfully loaded {args.model_name} from {os.path.join(BASE_MODEL_DIR, category, args.model_name)}")
         else:
             logger.error(f"Model {args.model_name} not found in any category")
     else:

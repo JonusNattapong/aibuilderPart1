@@ -1,50 +1,82 @@
 # Specialized AI Models Setup
 
-This directory contains scripts for downloading and setting up specialized AI models for audio, vision, and multimodal processing.
+This directory contains scripts for downloading and setting up specialized AI models across multiple domains.
 
-## Model Storage Location
-
-All models are stored in `D:\Models` with the following structure:
-```
-D:\Models\
-├── audio\
-│   ├── wav2vec2\
-│   ├── hubert\
-│   ├── whisper\
-│   └── audio-spectrogram\
-├── vision\
-│   ├── vit\
-│   ├── detr\
-│   ├── deit\
-│   └── segformer\
-└── multimodal\
-    ├── clip\
-    ├── layoutlm\
-    └── vilbert\
-```
-
-## Available Models
-
-### Audio Models
-- **wav2vec2**: Facebook's wav2vec2-base model for speech recognition
-- **hubert**: Facebook's HuBERT model for speech processing
-- **whisper**: OpenAI's Whisper model for speech recognition
-- **audio-spectrogram**: Facebook's Audio Spectrogram Transformer
+## Model Categories and Available Models
 
 ### Vision Models
-- **vit**: Google's Vision Transformer
-- **detr**: Facebook's DETR object detection model
-- **deit**: Facebook's Data-efficient Image Transformer
-- **segformer**: NVIDIA's SegFormer for image segmentation
+- **captioning** (llava-1.5-7b-hf) - Image captioning
+- **stable-diffusion** - Image generation from text
+- **clip** - Image and text matching
+- **pix2pix** - Image-to-image translation
+- **cycleGAN** - Unpaired image translation
+- **YOLO** - Object detection
+- **Faster-RCNN** - Object detection with bounding boxes
+- **Mask-RCNN** - Instance segmentation
+- **U-Net** - Medical image segmentation
+
+### Text Models
+- **qna** (Mistral-7B) - Question answering
+- **summarization** (BART) - Text summarization
+- **text-gen** (GPT-2) - Text generation
+- **translation** (mBART) - Language translation
+- **semantic-search** (MiniLM) - Semantic search
+- **chatbot** (DialoGPT) - Conversational AI
+- **RoBERTa** - Text classification
+- **DistilBERT** - Lightweight BERT
+- **XLNet** - Advanced language understanding
+
+### Audio Models
+- **bg-music** (MusicGen) - Music generation
+- **speech-to-text** (Whisper) - Speech recognition
+- **text-to-speech** (Tacotron2) - Voice synthesis
+- **sound-effect** - Sound effect generation
+- **DeepNoise** - Noise reduction
+- **SEGAN** - Speech enhancement
+
+### Speech Models
+- **whisper** - Speech recognition
+- **wav2vec2** - Speech processing
+- **hubert** - Speech understanding
+- **text-to-speech** (FastSpeech2) - Voice synthesis
+
+### Code Generation Models
+- **html-gen** (DeepSeek) - HTML/CSS generation
+- **python-gen** (CodeGen) - Python code generation
+- **javascript-gen** (DeepSeek) - JavaScript generation
+- **sql-gen** (DeepSeek) - SQL query generation
+
+### Creative Models
+- **chroma** - Artistic content generation
+- **stable-diffusion** - Image generation
 
 ### Multimodal Models
-- **clip**: OpenAI's CLIP model for image-text understanding
-- **layoutlm**: Microsoft's LayoutLM for document understanding
-- **vilbert**: VIT-GPT2 for image captioning
+- **clip** - Vision-language understanding
+- **vilt** - Visual-language tasks
 
-## Usage
+### Additional Categories
+- **Time Series Models**: prophet, lstm
+- **Recommendation Models**: user-item-cf, content-based
+- **Translation Models**: mBART, T5, MarianMT
 
-### Downloading Models
+## Installation
+
+Models are stored in `D:\Models` with category-based organization:
+```
+D:\Models\
+├── vision\
+├── text\
+├── audio\
+├── speech\
+├── code\
+├── creative\
+├── multimodal\
+├── time-series\
+├── recommendation\
+└── translation\
+```
+
+### Usage
 
 Download all models:
 ```bash
@@ -53,78 +85,74 @@ python download_specialized_models.py --category all
 
 Download specific category:
 ```bash
-python download_specialized_models.py --category audio
 python download_specialized_models.py --category vision
-python download_specialized_models.py --category multimodal
+python download_specialized_models.py --category text
+# etc...
 ```
 
-### Loading Models
-
-To load a specific model:
-```bash
-# Download and load a model
-python download_specialized_models.py --load --model-name wav2vec2
-
-# Example usage in code:
+Load models in code:
+```python
 from download_specialized_models import load_model
 
-# Load audio model
-audio_model = load_model('audio', 'wav2vec2')
-if audio_model:
-    processor = audio_model['processor']
-    model = audio_model['model']
-
-# Load vision model
-vision_model = load_model('vision', 'vit')
+# Load a vision model
+vision_model = load_model('vision', 'YOLO')
 if vision_model:
-    feature_extractor = vision_model['feature_extractor']
     model = vision_model['model']
+    processor = vision_model.get('processor')
 
-# Load multimodal model
-multimodal_model = load_model('multimodal', 'clip')
-if multimodal_model:
-    processor = multimodal_model['processor']
-    model = multimodal_model['model']
-    tokenizer = multimodal_model['tokenizer']
+# Load a text model
+text_model = load_model('text', 'qna')
+if text_model:
+    model = text_model['model']
+    processor = text_model.get('processor')
 ```
-
-## Requirements
-
-See `requirements_specialized.txt` for detailed package requirements. Main dependencies include:
-- PyTorch
-- Transformers
-- Hugging Face Hub
-- Additional audio/vision processing libraries
-
-## Troubleshooting
-
-1. If you encounter CUDA/GPU related errors:
-   - Make sure you have the correct CUDA version installed
-   - Try running with CPU only by setting: `export CUDA_VISIBLE_DEVICES=""`
-
-2. If you face download issues:
-   - Check your internet connection
-   - Ensure you have sufficient disk space in D: drive
-   - Try downloading models individually
-
-3. For memory issues:
-   - Consider downloading models one at a time
-   - Free up system memory before downloading large models
-
-4. For storage location issues:
-   - Ensure D: drive exists and is accessible
-   - Check write permissions for D:\Models directory
-   - If D: drive is not available, modify BASE_MODEL_DIR in the script
-
-## Notes
-
-- Models are downloaded from Hugging Face Hub and stored locally in D:\Models
-- Downloaded models are cached to avoid redownloading
-- Each model category requires different disk space:
-  - Audio: ~5GB
-  - Vision: ~4GB
-  - Multimodal: ~7GB
 
 ## Storage Requirements
 
-Ensure you have at least 20GB of free space on your D: drive before downloading all models. The actual space required may vary depending on the specific model versions and additional cached files.
+Estimated storage requirements by category:
+- Vision Models: ~20GB
+- Text Models: ~15GB
+- Audio Models: ~10GB
+- Speech Models: ~8GB
+- Code Models: ~12GB
+- Creative Models: ~7GB
+- Multimodal Models: ~5GB
+- Other Categories: ~5GB each
+
+Total storage requirement: ~90GB recommended
+
+## System Requirements
+
+- Python 3.8 or later
+- CUDA-capable GPU recommended for faster inference
+- Minimum 16GB RAM (32GB recommended)
+- At least 100GB free space on D: drive
+- Internet connection for downloading models
+
+## Troubleshooting
+
+1. Memory Issues
+   ```bash
+   # Set maximum GPU memory usage
+   export CUDA_VISIBLE_DEVICES="0"  # Use specific GPU
+   export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
+   ```
+
+2. Download Issues
+   - Check internet connection
+   - Verify D: drive accessibility
+   - Try downloading models individually
+
+3. Loading Issues
+   ```python
+   # Load model in CPU mode if GPU memory is insufficient
+   model = load_model('category', 'model_name', device='cpu')
+   ```
+
+## Notes
+
+- Models are downloaded from Hugging Face Hub
+- Some models may require additional dependencies
+- Large models may take significant time to download
+- Models are cached to avoid redownloading
+- Check model licenses before commercial use
