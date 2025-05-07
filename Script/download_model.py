@@ -1,16 +1,21 @@
 import os
-from transformers import AutoTokenizer, AutoModel
+from transformers.models.auto.tokenization_auto import AutoTokenizer
+from transformers.models.auto.modeling_auto import AutoModelForCausalLM
 import logging
+import torch
+# .env file loading (if needed)
+from dotenv import load_dotenv
+load_dotenv()
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Configuration ---
-MODEL_NAME = "airesearch/wangchanberta-base-att-spm-uncased"
+MODEL_NAME = "mistralai/Mistral-7B-Instruct-v0.3"  # Typhoon 7B Instruct model
 # Determine the base path (assuming this script is in the 'Script' folder)
 BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Define the target directory to save the model
-SAVE_DIRECTORY = os.path.join(BASE_PATH, 'Model', MODEL_NAME.split('/')[-1]) # Create a subfolder named after the model
+SAVE_DIRECTORY = os.path.join(BASE_PATH, 'ModelUse', MODEL_NAME.split('/')[-1])
 
 # --- Main Download Logic ---
 def download_model():
@@ -28,22 +33,38 @@ def download_model():
             return
 
     try:
-        # Download and load tokenizer
+        # Download and load tokenizer with specific configurations
         logging.info("Downloading tokenizer...")
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        tokenizer = AutoTokenizer.from_pretrained(
+            MODEL_NAME,
+            trust_remote_code=True
+        )
         # Save tokenizer
         tokenizer.save_pretrained(SAVE_DIRECTORY)
         logging.info(f"Tokenizer saved successfully to {SAVE_DIRECTORY}")
 
-        # Download and load model
+        # Download and load model with device mapping
         logging.info("Downloading model... (This may take a while)")
-        # Use AutoModel for a general base model, or specify the head if needed
-        # e.g., AutoModelForSequenceClassification, AutoModelForMaskedLM
-        model = AutoModel.from_pretrained(MODEL_NAME)
-        # Save model
-        model.save_pretrained(SAVE_DIRECTORY)
-        logging.info(f"Model saved successfully to {SAVE_DIRECTORY}")
+        
+        # Check available device
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logging.info(f"Using device: {device}")
 
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_NAME,
+            trust_remote_code=True,
+            device_map="auto" if device == "cuda" else None,
+            low_cpu_mem_usage=True,  # Always use low memory mode for large models
+            torch_dtype=torch.float16,  # Use float16 for efficiency
+            offload_folder="offload"  # Enable disk offloading if needed
+        )
+        
+        # Save model
+        model.save_pretrained(
+            SAVE_DIRECTORY,
+            safe_serialization=True
+        )
+        logging.info(f"Model saved successfully to {SAVE_DIRECTORY}")
         logging.info("Model download and saving complete.")
 
     except Exception as e:

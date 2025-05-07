@@ -2,6 +2,9 @@ import os
 import json
 import time
 import logging
+import requests # Added
+import random   # Added
+import hashlib  # Added
 from utils import save_jsonl, save_csv, convert_to_simplified_format, generate_statistics, visualize_statistics
 from config import (
     ENABLE_EXECUTION_CHECK, ENABLE_SEMANTIC_CHECK, SAVE_CSV_OUTPUT, SAVE_SIMPLIFIED_FORMAT,
@@ -166,24 +169,56 @@ Generate ONLY the JSON object. Do not include any other text before or after the
 
 def generate_with_llm(num_samples=None, temperature=None):
     """Generates query-answer pairs by calling the DeepSeek LLM."""
-    # ... (Initialization and API key check) ...
+    if not DEEPSEEK_API_KEY:
+        logger.error("DEEPSEEK_API_KEY is not set in config_apigen_llm.py")
+        return []
+    if not DEEPSEEK_API_URL:
+        logger.error("DEEPSEEK_API_URL is not set in config_apigen_llm.py")
+        return []
+
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    cache = LLMResponseCache(os.path.join(CACHE_DIR, CACHE_FILENAME)) if ENABLE_CACHING else None
+    if ENABLE_CACHING and not os.path.exists(CACHE_DIR):
+        os.makedirs(CACHE_DIR, exist_ok=True)
 
     generated_outputs = []
     successful_generations = 0
-    attempted_generations = 0 # Track total attempts including negative sampling
+    attempted_generations = 0
 
     logger.info(f"Attempting to generate approximately {num_samples} samples (including negative samples if enabled)...")
 
     while successful_generations < num_samples:
         attempted_generations += 1
-        # Decide whether to generate a negative sample
         generate_negative = ENABLE_NEGATIVE_SAMPLING and random.random() < NEGATIVE_SAMPLING_RATIO
-
-        # Create a new prompt for each generation
         system_prompt, user_prompt, selected_apis = create_llm_prompt(USE_THAI_QUERIES, generate_negative)
 
-        # Check cache if enabled
-        # ... (existing cache check logic) ...
+        cache_key = hashlib.md5((system_prompt + user_prompt + str(temperature) + DEEPSEEK_MODEL).encode()).hexdigest()
+
+        if ENABLE_CACHING and cache and cache.get(cache_key):
+            logger.info(f"  Cache HIT for attempt {attempted_generations}. Using cached response.")
+            raw_output = cache.get(cache_key)
+            try:
+                # Attempt to parse the cached output, which should be the raw LLM string
+                json_start = raw_output.find('{')
+                json_end = raw_output.rfind('}') + 1
+                if json_start != -1 and json_end > json_start:
+                    cleaned_output = raw_output[json_start:json_end]
+                    parsed_json = json.loads(cleaned_output)
+                else: # Fallback if no brackets, assume it might be full JSON string
+                    parsed_json = json.loads(raw_output)
+
+                parsed_json['_generation_meta'] = {'is_negative_sample_target': generate_negative}
+                generated_outputs.append(json.dumps(parsed_json))
+                successful_generations += 1
+                logger.info(f"    Success (from cache) ({successful_generations}/{num_samples})")
+                continue
+            except (json.JSONDecodeError, TypeError) as e: # Added TypeError for safety
+                logger.warning(f"    Warning: Could not parse cached JSON: {e}. Will regenerate.")
+                if cache:
+                    cache.delete(cache_key)
 
         payload = {
             "model": DEEPSEEK_MODEL,
@@ -202,57 +237,49 @@ def generate_with_llm(num_samples=None, temperature=None):
                              f"Type: {'Negative' if generate_negative else 'Positive'}, Retry {retries}...")
                 
                 response = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload)
-                response.raise_for_status()  # Raise error for bad status codes
+                response.raise_for_status()
 
                 result = response.json()
                 raw_output = result['choices'][0]['message']['content']
 
-                # Basic cleanup: try to extract only the JSON part
                 try:
                     json_start = raw_output.find('{')
                     json_end = raw_output.rfind('}') + 1
                     if json_start != -1 and json_end > json_start:
                         cleaned_output = raw_output[json_start:json_end]
-                        # Verify it's valid JSON before adding
                         parsed_json = json.loads(cleaned_output)
-
-                        # Add metadata about the generation type
                         parsed_json['_generation_meta'] = {'is_negative_sample_target': generate_negative}
-
-                        generated_outputs.append(json.dumps(parsed_json)) # Store as string again for consistency
+                        generated_outputs.append(json.dumps(parsed_json))
                         successful_generations += 1
 
-                        # Add to cache if enabled
                         if ENABLE_CACHING and cache:
-                            cache.set(cache_key, raw_output)
+                            cache.set(cache_key, raw_output) # Cache the raw output
 
                         logger.info(f"    Success ({successful_generations}/{num_samples})")
-                        break # Success, move to next generation attempt
-
-                    else: # Handle case where LLM didn't output JSON brackets
+                        break 
+                    else:
                          logger.warning(f"    Warning: Could not find JSON brackets {{}} in LLM response.")
-                         # Don't break, retry might fix it
-
                 except (ValueError, json.JSONDecodeError) as json_err:
                     logger.warning(f"    Warning: Could not extract valid JSON from LLM response: {json_err}")
                     logger.debug(f"      Raw Response: {raw_output}")
-                    # Don't break, retry might fix it
-
             except requests.exceptions.RequestException as e:
                 logger.error(f"    Error making request to Deepseek API: {e}")
                 if retries >= MAX_RETRIES_LLM:
                     logger.error("    Max retries reached for API call")
-                    break
-            retries += 1
-            time.sleep(RETRY_DELAY_LLM)  # Wait before retrying
+                    break 
+            retries += 1 # Ensure no 'ฝ' character here
+            time.sleep(RETRY_DELAY_LLM)
 
+        if successful_generations == num_samples: # Check if we've met the target
+            break
         # Safety break if something goes wrong and loop runs too long
-        if attempted_generations > num_samples * 2 and successful_generations < num_samples:
-             logger.warning(f"Breaking generation loop early after {attempted_generations} attempts.")
+        if attempted_generations > num_samples * (MAX_RETRIES_LLM + 2) and successful_generations < num_samples : # Adjusted safety break
+             logger.warning(f"Breaking generation loop early after {attempted_generations} attempts for {num_samples} targets.")
              break
 
     logger.info(f"\nLLM Generation finished. Successfully generated {successful_generations} raw outputs from {attempted_generations} attempts.")
-    # ... (Log cache stats) ...
+    if ENABLE_CACHING and cache:
+        logger.info(f"Cache stats: Hits={cache.hits}, Misses={cache.misses}, Sets={cache.sets}")
     return generated_outputs
 
 

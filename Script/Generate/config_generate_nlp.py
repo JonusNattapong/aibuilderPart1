@@ -1,0 +1,71 @@
+OUTPUT_DIR = 'Script/Generate/NLP_OUTPUT'
+MAX_RETRIES = 3
+RETRY_DELAY = 2
+NUM_SAMPLES_PER_TASK = 100
+DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
+DEEPSEEK_MODEL = 'deepseek-chat'
+
+NLP_TASKS = {
+    'text_classification': ['general', 'finance', 'politics', 'entertainment', 'sports', 'technology', 'legal', 'medical', 'education'],
+    'token_classification': ['ner', 'pos', 'chunking', 'bio_ner', 'chemical_ner'],
+    'table_question_answering': ['general', 'finance', 'sports', 'science', 'medical'],
+    'question_answering': ['general', 'science', 'history', 'technology', 'legal', 'medical'],
+    'zero_shot_classification': ['general', 'finance', 'politics', 'entertainment', 'medical'],
+    'translation': ['en-th', 'th-en', 'en-fr', 'fr-en', 'en-es', 'es-en', 'zh-th', 'th-zh', 'en-lo', 'lo-en'],
+    'summarization': ['news', 'documents', 'conversations', 'articles', 'legal', 'medical'],
+    'feature_extraction': ['general', 'finance', 'politics', 'entertainment', 'medical'],
+    'text_generation': ['stories', 'dialogues', 'articles', 'poetry', 'legal_cases', 'medical_reports'],
+    'text2text_generation': ['summarization', 'translation', 'paraphrasing', 'simplification'],
+    'fill_mask': ['general', 'finance', 'politics', 'entertainment', 'medical'],
+    'sentence_similarity': ['general', 'finance', 'politics', 'entertainment', 'legal'],
+    'text_ranking': ['general', 'finance', 'politics', 'entertainment', 'education'],
+    'language_detection': ['general'],
+    'sentiment_analysis': ['product_reviews', 'social_media', 'customer_feedback', 'movie_reviews'],
+    'intent_recognition': ['chatbots', 'customer_support', 'virtual_assistants'],
+}
+
+
+NLP_TOPICS = {
+    'general': ['daily life', 'news', 'social media', 'education', 'culture', 'travel'],
+    'finance': ['stock market', 'economy', 'banking', 'investments', 'cryptocurrency', 'personal finance'],
+    'politics': ['elections', 'government', 'policies', 'activism', 'international relations'],
+    'entertainment': ['movies', 'music', 'celebrities', 'awards', 'TV shows', 'games'],
+    'sports': ['football', 'basketball', 'tennis', 'olympics', 'e-sports'],
+    'technology': ['AI', 'software development', 'gadgets', 'cybersecurity', 'robotics'],
+    'legal': ['contracts', 'lawsuits', 'regulations', 'court cases'],
+    'medical': ['diseases', 'diagnosis', 'treatments', 'medical reports', 'clinical trials'],
+    'education': ['school subjects', 'university topics', 'e-learning', 'exams'],
+    'ner': ['people', 'organizations', 'locations', 'events', 'medical_terms'],
+    'pos': ['nouns', 'verbs', 'adjectives', 'adverbs'],
+    'chunking': ['noun phrases', 'verb phrases', 'prepositional phrases'],
+    'bio_ner': ['proteins', 'genes', 'cells'],
+    'chemical_ner': ['drugs', 'compounds', 'reactions'],
+    'science': ['biology', 'physics', 'chemistry', 'environmental science', 'astronomy'],
+    'history': ['world history', 'local history', 'historical events', 'biographies'],
+    'en-th': ['general', 'finance', 'politics', 'entertainment', 'medical', 'legal'],
+    'th-en': ['general', 'finance', 'politics', 'entertainment', 'science', 'legal'],
+    'en-fr': ['general', 'finance', 'politics', 'entertainment'],
+    'fr-en': ['general', 'finance', 'politics', 'entertainment'],
+    'en-es': ['general', 'finance', 'politics', 'entertainment'],
+    'es-en': ['general', 'finance', 'politics', 'entertainment'],
+    'zh-th': ['general', 'medical', 'commerce'],
+    'th-zh': ['general', 'legal', 'e-commerce'],
+    'en-lo': ['general', 'education'],
+    'lo-en': ['general', 'healthcare'],
+    'news': ['local news', 'international news', 'breaking news'],
+    'documents': ['legal documents', 'medical documents', 'technical documents', 'business documents'],
+    'conversations': ['customer support', 'dialogues', 'interviews', 'therapy sessions'],
+    'stories': ['fiction', 'non-fiction', 'short stories', 'folktales'],
+    'dialogues': ['conversations', 'interviews', 'debates', 'customer interactions'],
+    'articles': ['news articles', 'blog posts', 'research articles', 'reviews'],
+    'poetry': ['classical poetry', 'modern poetry', 'haiku', 'free verse'],
+    'summarization': ['news summarization', 'document summarization', 'content summarization', 'court summary'],
+    'translation': ['language translation', 'simultaneous interpretation', 'cross-lingual understanding'],
+    'paraphrasing': ['text paraphrasing', 'content rewriting', 'style adaptation'],
+    'simplification': ['text simplification', 'readability enhancement'],
+    'product_reviews': ['electronics', 'books', 'clothing'],
+    'customer_feedback': ['services', 'apps', 'retail'],
+    'movie_reviews': ['drama', 'action', 'comedy'],
+    'chatbots': ['greetings', 'small talk', 'troubleshooting'],
+    'virtual_assistants': ['task management', 'calendar', 'recommendations'],
+}

@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment variables
+.envTP
+.env
+# Virtual Environment
+venv/
+env/
+ENV/
+
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Model files
+ModelUse/
+Model/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+tokenizer.json
+tokenizer_config.json
+special_tokens_map.json
+vocab.json
+merges.txt
+
+# Generated data and outputs
+DataOutput/
+
+# Logs
+*.log
+
+DatasetDownload/

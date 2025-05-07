@@ -1,0 +1,191 @@
+openapi: 3.0.0
+info:
+  title: Self-hosted LLM API
+  description: |
+    API for generating text using Self-hosted LLM model (Ollama).
+    Support both JSON body and URL parameters for requests.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+
+tags:
+  - name: SuperGenData
+    description: Dataset generation endpoints for various types of data
+  - name: TextGeneration
+    description: Basic text generation endpoints
+
+paths:
+  /generate:
+    post:
+      tags:
+        - TextGeneration
+      summary: Generate text based on a given prompt
+      description: |
+        Generates text using the Self-hosted LLM model.
+        You can send the prompt either in the request body as JSON or as a URL parameter.
+      parameters:
+        - in: query
+          name: prompt
+          schema:
+            type: string
+          description: The prompt to generate text from (URL parameter method)
+      requestBody:
+        description: JSON body containing the prompt (alternative to URL parameter)
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  description: The prompt to generate text from
+              example:
+                prompt: "สวัสดี"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    type: string
+                example:
+                  response: "สวัสดีครับ ยินดีต้อนรับ"
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                example:
+                  error: "Missing prompt in request"
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                example:
+                  error: "Failed to generate text"
+  
+  /generate_nlp_dataset:
+    post:
+      tags:
+        - SuperGenData
+      summary: Generate NLP dataset
+      description: Generate natural language processing datasets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dataset_type:
+                  type: string
+                  description: Type of NLP dataset (qa, summarization, etc.)
+                prompt:
+                  type: string
+                  description: The prompt for dataset generation
+              required:
+                - dataset_type
+                - prompt
+      responses:
+        '200':
+          description: Dataset generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dataset:
+                    type: string
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Server error
+
+  /generate_vision_dataset:
+    post:
+      tags:
+        - SuperGenData
+      summary: Generate Vision dataset
+      description: Generate computer vision datasets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dataset_type:
+                  type: string
+                  description: Type of vision dataset (classification, detection, etc.)
+                prompt:
+                  type: string
+                  description: The prompt for dataset generation
+              required:
+                - dataset_type
+                - prompt
+      responses:
+        '200':
+          description: Dataset generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dataset:
+                    type: string
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Server error
+
+  /generate_reasoning_dataset:
+    post:
+      tags:
+        - SuperGenData
+      summary: Generate Reasoning dataset
+      description: Generate reasoning and logical thinking datasets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dataset_type:
+                  type: string
+                  description: Type of reasoning dataset (cot, meta_reasoning, etc.)
+                prompt:
+                  type: string
+                  description: The prompt for dataset generation
+              required:
+                - dataset_type
+                - prompt
+      responses:
+        '200':
+          description: Dataset generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dataset:
+                    type: string
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Server error
